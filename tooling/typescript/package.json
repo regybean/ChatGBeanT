@@ -1,0 +1,7 @@
+{
+  "name": "@digitaltransitlimited/tsconfig",
+  "files": [
+    "*.json"
+  ],
+  "private": true
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@digitaltransitlimited/vitest-config",
+  "dependencies": {
+    "vitest": "catalog:"
+  },
+  "devDependencies": {
+    "@digitaltransitlimited/eslint-config": "workspace:*",
+    "@digitaltransitlimited/prettier-config": "workspace:*",
+    "@digitaltransitlimited/tsconfig": "workspace:*",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  },
+  "exports": {
+    "./base": "./base.ts"
+  },
+  "license": "MIT",
+  "prettier": "@digitaltransitlimited/prettier-config",
+  "private": true,
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo node_modules",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}

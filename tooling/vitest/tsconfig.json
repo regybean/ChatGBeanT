@@ -1,0 +1,10 @@
+{
+  "extends": "@digitaltransitlimited/tsconfig/compiled-package.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "preserve",
+    "rootDir": "."
+  },
+  "include": ["src", "*.ts"],
+  "exclude": ["node_modules"]
+}
