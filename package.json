@@ -1,23 +1,29 @@
 {
-  "name": "convex-monorepo",
-  "private": true,
-  "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean && rm -rf node_modules",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\" --ignore-path .gitignore"
-  },
-  "devDependencies": {
-    "prettier": "3.7.4",
-    "turbo": "2.6.2"
-  },
-  "engines": {
-    "node": ">=20.19.4"
-  },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "packageManager": "yarn@1.22.22"
+    "name": "chatgbeant",
+    "private": true,
+    "scripts": {
+        "predev": "bash scripts/check-remote-cache.sh",
+        "dev": "turbo run dev",
+        "build": "turbo run build",
+        "clean": "turbo run clean && rm -rf node_modules",
+        "format": "turbo run format --continue -- --check",
+        "format:fix": "turbo run format --continue -- --write",
+        "lint": "turbo run lint",
+        "typecheck": "turbo run typecheck",
+        "deps:check": "pnpm outdated",
+        "deps:format": "pnpm sort-package-json 'package.json' 'apps/*/package.json' 'backend/package.json' 'packages/*/package.json' 'tooling/*/package.json'",
+        "deps:lint": "syncpack lint",
+        "deps:update": "pnpm update -i -r --latest"
+    },
+    "devDependencies": {
+        "convex": "catalog:",
+        "prettier": "catalog:",
+        "sort-package-json": "3.6.0",
+        "syncpack": "13.0.4",
+        "turbo": "catalog:"
+    },
+    "engines": {
+        "node": ">=20.19.4"
+    },
+    "packageManager": "pnpm@10.15.1"
 }

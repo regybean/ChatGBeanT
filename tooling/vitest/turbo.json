@@ -1,5 +1,9 @@
 {
-  "extends": ["//"],
-  "tags": ["tooling"],
-  "tasks": {}
+    "extends": [
+        "//"
+    ],
+    "tags": [
+        "tooling"
+    ],
+    "tasks": {}
 }

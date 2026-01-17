@@ -1,7 +1,7 @@
 {
-  "name": "@digitaltransitlimited/tsconfig",
-  "files": [
-    "*.json"
-  ],
-  "private": true
+    "name": "@chatgbeant/tsconfig",
+    "files": [
+        "*.json"
+    ],
+    "private": true
 }

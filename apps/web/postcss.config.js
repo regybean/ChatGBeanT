@@ -1,5 +1,1 @@
-module.exports = {
-  plugins: {
-    '@tailwindcss/postcss': {},
-  },
-};
+export { default } from '@digitaltransitlimited/tailwind-config/postcss-config';

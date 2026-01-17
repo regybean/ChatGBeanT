@@ -1,16 +1,16 @@
-import type { Metadata } from "next";
-import { Inter, Montserrat, Lato } from "next/font/google";
-import { cn } from "@/lib/utils";
-import "./globals.css";
-import ConvexClientProvider from "./ConvexClientProvider";
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 
-const inter = Inter({ subsets: ["latin"] });
-const montserrat = Montserrat({ subsets: ["latin"] });
-const lato = Lato({ weight: "400", subsets: ["latin"] });
+import '@chatgbeant/tailwind-config/theme';
+
+import './globals.css';
+import { Providers } from './providers';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: "Notes App",
-  description: "This is an app to take notes.",
+  title: 'ChatGBeanT',
+  description: 'Multi-LLM chat application with OpenRouter',
 };
 
 export default function RootLayout({
@@ -19,9 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={cn(inter.className, montserrat.className, lato.className)}>
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans antialiased`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

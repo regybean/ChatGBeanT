@@ -1,0 +1,62 @@
+{
+    "name": "@chatgbeant/ui",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "exports": {
+        ".": "./src/index.ts",
+        "./button": "./src/components/button.tsx",
+        "./input": "./src/components/input.tsx",
+        "./textarea": "./src/components/textarea.tsx",
+        "./select": "./src/components/select.tsx",
+        "./dropdown-menu": "./src/components/dropdown-menu.tsx",
+        "./avatar": "./src/components/avatar.tsx",
+        "./scroll-area": "./src/components/scroll-area.tsx",
+        "./skeleton": "./src/components/skeleton.tsx",
+        "./card": "./src/components/card.tsx",
+        "./label": "./src/components/label.tsx",
+        "./toaster": "./src/components/toaster.tsx",
+        "./markdown-content": "./src/components/markdown-content.tsx",
+        "./cn": "./src/lib/utils.ts"
+    },
+    "scripts": {
+        "clean": "git clean -xdf .cache .turbo node_modules",
+        "format": "prettier --check . --ignore-path ../../.gitignore",
+        "lint": "eslint",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "lucide-react": "^0.511.0",
+        "@radix-ui/react-avatar": "^1.1.10",
+        "@radix-ui/react-dropdown-menu": "^2.1.6",
+        "@radix-ui/react-label": "^2.1.4",
+        "@radix-ui/react-scroll-area": "^1.2.5",
+        "@radix-ui/react-select": "^2.2.2",
+        "@radix-ui/react-slot": "^1.2.2",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "react-markdown": "^10.1.0",
+        "remark-gfm": "^4.0.1",
+        "sonner": "^2.0.3",
+        "tailwind-merge": "^3.3.0"
+    },
+    "devDependencies": {
+        "@chatgbeant/eslint-config": "workspace:*",
+        "@chatgbeant/prettier-config": "workspace:*",
+        "@chatgbeant/tsconfig": "workspace:*",
+        "@types/node": "catalog:",
+        "@types/react": "catalog:",
+        "@types/react-dom": "catalog:",
+        "eslint": "catalog:",
+        "prettier": "catalog:",
+        "react": "catalog:",
+        "react-dom": "catalog:",
+        "typescript": "catalog:"
+    },
+    "peerDependencies": {
+        "next-themes": ">=0.4",
+        "react": ">=18",
+        "react-dom": ">=18"
+    },
+    "prettier": "@chatgbeant/prettier-config"
+}

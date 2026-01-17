@@ -1,5 +1,9 @@
 {
-  "extends": "@digitaltransitlimited/tsconfig/base.json",
-  "include": ["."],
-  "exclude": ["node_modules"]
+    "extends": "@chatgbeant/tsconfig/base.json",
+    "include": [
+        "."
+    ],
+    "exclude": [
+        "node_modules"
+    ]
 }

@@ -8,8 +8,14 @@
  * @module
  */
 
-import type * as notes from "../notes.js";
-import type * as openai from "../openai.js";
+import type * as admin from "../admin.js";
+import type * as chats from "../chats.js";
+import type * as http from "../http.js";
+import type * as messages from "../messages.js";
+import type * as models from "../models.js";
+import type * as openrouter from "../openrouter.js";
+import type * as ratelimit from "../ratelimit.js";
+import type * as users from "../users.js";
 import type * as utils from "../utils.js";
 
 import type {
@@ -19,8 +25,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  notes: typeof notes;
-  openai: typeof openai;
+  admin: typeof admin;
+  chats: typeof chats;
+  http: typeof http;
+  messages: typeof messages;
+  models: typeof models;
+  openrouter: typeof openrouter;
+  ratelimit: typeof ratelimit;
+  users: typeof users;
   utils: typeof utils;
 }>;
 

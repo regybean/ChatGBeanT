@@ -1,5 +1,12 @@
 {
-  "extends": "@digitaltransitlimited/tsconfig/base.json",
-  "include": ["."],
-  "exclude": ["node_modules"]
+    "extends": "../../tooling/typescript/base.json",
+    "compilerOptions": {
+        "strictNullChecks": true
+    },
+    "include": [
+        "."
+    ],
+    "exclude": [
+        "node_modules"
+    ]
 }
