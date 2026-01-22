@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 
-import { action, internalMutation } from './_generated/server';
+import { action, internalMutation, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import { isModelAvailableForTier, isPremiumModel } from './models';
 
@@ -46,7 +46,7 @@ export const chat = action({
     }
 
     // Check token limits
-    const limits = TOKEN_LIMITS[user.tier];
+    const limits = TOKEN_LIMITS[user.tier as keyof typeof TOKEN_LIMITS];
     const isPremium = isPremiumModel(args.model);
 
     if (isPremium) {
@@ -66,7 +66,7 @@ export const chat = action({
 
     // Build messages array for OpenRouter
     const openRouterMessages = [
-      ...messages.map((m) => ({
+      ...messages.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant' | 'system',
         content: m.content,
       })),
@@ -137,7 +137,7 @@ export const chat = action({
 /**
  * Internal query to get user by Clerk ID
  */
-export const getUser = internalMutation({
+export const getUser = internalQuery({
   args: {
     clerkId: v.string(),
   },
@@ -152,7 +152,7 @@ export const getUser = internalMutation({
 /**
  * Internal query to get chat messages
  */
-export const getChatMessages = internalMutation({
+export const getChatMessages = internalQuery({
   args: {
     chatId: v.id('chats'),
   },

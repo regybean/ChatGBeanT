@@ -17,10 +17,6 @@ export default function AdminDashboard() {
         );
     }
 
-    if (!stats) {
-        return null;
-    }
-
     return (
         <div className="space-y-6">
             <div>

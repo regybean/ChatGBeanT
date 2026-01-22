@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
 import { useMutation } from 'convex/react';
 import { useRouter } from 'next/navigation';
 
@@ -12,10 +11,6 @@ export default function NewChatPage() {
     const router = useRouter();
     const createChat = useMutation(api.chats.create);
 
-    useEffect(() => {
-        // Get or create user on mount
-        // This ensures the user exists in the database
-    }, []);
 
     const handleFirstMessage = async (content: string, model: string) => {
         try {

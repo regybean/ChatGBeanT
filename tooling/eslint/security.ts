@@ -1,3 +1,4 @@
+/// <reference path="./eslint-plugin-security.d.ts" />
 import pluginSecurity from 'eslint-plugin-security';
 import pluginSonar from 'eslint-plugin-sonarjs';
 import pluginUnicorn from 'eslint-plugin-unicorn';

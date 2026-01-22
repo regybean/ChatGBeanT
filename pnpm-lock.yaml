@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@clerk/nextjs':
-      specifier: 6.35.6
-      version: 6.35.6
+      specifier: 6.36.8
+      version: 6.36.8
     '@eslint/js':
       specifier: ^9.39.1
       version: 9.39.1
@@ -77,6 +77,9 @@ importers:
       convex:
         specifier: 'catalog:'
         version: 1.29.3(@clerk/clerk-react@5.59.4(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react@19.2.2)
+      dotenv-cli:
+        specifier: ^8.0.0
+        version: 8.0.0
       prettier:
         specifier: 'catalog:'
         version: 3.7.4
@@ -97,7 +100,7 @@ importers:
         version: link:../../packages/auth
       '@chatgbeant/backend':
         specifier: workspace:*
-        version: link:../../backend
+        version: link:../../packages/backend
       '@chatgbeant/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -106,13 +109,16 @@ importers:
         version: link:../../packages/ui
       '@clerk/nextjs':
         specifier: 'catalog:'
-        version: 6.35.6(next@16.1.3(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
+        version: 6.36.8(next@16.1.3(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
       '@t3-oss/env-nextjs':
         specifier: 'catalog:'
         version: 0.13.10(typescript@5.9.3)(zod@4.3.5)
       convex:
         specifier: 'catalog:'
         version: 1.29.3(@clerk/clerk-react@5.59.4(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react@19.2.2)
+      jiti:
+        specifier: ^2.6.1
+        version: 2.6.1
       lucide-react:
         specifier: ^0.511.0
         version: 0.511.0(react@19.2.2)
@@ -159,6 +165,9 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.2(@types/react@19.2.2)
+      dotenv-cli:
+        specifier: ^8.0.0
+        version: 8.0.0
       eslint:
         specifier: 'catalog:'
         version: 9.39.1(jiti@2.6.1)
@@ -174,19 +183,9 @@ importers:
       tailwindcss:
         specifier: 'catalog:'
         version: 4.1.17
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-
-  backend:
-    dependencies:
-      '@convex-dev/rate-limiter':
-        specifier: ^0.3.2
-        version: 0.3.2(convex@1.29.3(@clerk/clerk-react@5.59.4(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react@19.2.2))(react@19.2.2)
-      convex:
-        specifier: 'catalog:'
-        version: 1.29.3(@clerk/clerk-react@5.59.4(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react@19.2.2)
-    devDependencies:
+      tw-animate-css:
+        specifier: ^1.2.5
+        version: 1.4.0
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -218,6 +217,28 @@ importers:
       prettier:
         specifier: 'catalog:'
         version: 3.7.4
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+
+  packages/backend:
+    dependencies:
+      '@convex-dev/rate-limiter':
+        specifier: ^0.3.2
+        version: 0.3.2(convex@1.29.3(@clerk/clerk-react@5.59.4(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react@19.2.2))(react@19.2.2)
+      '@t3-oss/env-nextjs':
+        specifier: 'catalog:'
+        version: 0.13.10(typescript@5.9.3)(zod@4.3.5)
+      convex:
+        specifier: 'catalog:'
+        version: 1.29.3(@clerk/clerk-react@5.59.4(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react@19.2.2)
+      zod:
+        specifier: 'catalog:'
+        version: 4.3.5
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.7
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
@@ -377,9 +398,6 @@ importers:
       '@chatgbeant/tsconfig':
         specifier: workspace:*
         version: link:../typescript
-      '@types/eslint-plugin-security':
-        specifier: ^3.0.0
-        version: 3.0.0
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.7
@@ -416,6 +434,16 @@ importers:
         version: 5.9.3
 
   tooling/tailwind:
+    dependencies:
+      '@tailwindcss/postcss':
+        specifier: 'catalog:'
+        version: 4.1.17
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.1.17
+      tw-animate-css:
+        specifier: ^1.2.5
+        version: 1.4.0
     devDependencies:
       '@chatgbeant/eslint-config':
         specifier: workspace:*
@@ -550,13 +578,13 @@ packages:
       react: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
       react-dom: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
 
-  '@clerk/nextjs@6.35.6':
-    resolution: {integrity: sha512-4/OL1SQw1hprRGCAfNwZ01GmXfsDRi2sr8Y63/hOLuLM5A7wT5Ft1eAPTeVtoWKF8+G3M+n/vbyqYwY8l7VUzg==}
+  '@clerk/nextjs@6.36.8':
+    resolution: {integrity: sha512-Hipw/B/AqdkkcrLPVfVOW47YT+Nt8PwYzpxQv0iMWezdP9u4RWkQ0OfrhluvC7eSOLk/YCCljjaP+S4+VPfHig==}
     engines: {node: '>=18.17.0'}
     peerDependencies:
       next: ^13.5.7 || ^14.2.25 || ^15.2.3 || ^16
-      react: ^18.0.0 || ^19.0.0 || ^19.0.0-0
-      react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-0
+      react: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
+      react-dom: ^18.0.0 || ~19.0.3 || ~19.1.4 || ~19.2.3 || ~19.3.0-0
 
   '@clerk/shared@3.43.0':
     resolution: {integrity: sha512-pj8jgV5TX7l0ClHMvDLG7Ensp1BwA63LNvOE2uLwRV4bx3j9s4oGHy5bZlLBoOxdvRPCMpQksHi/O0x1Y+obdw==}
@@ -1900,12 +1928,6 @@ packages:
   '@types/deep-eql@4.0.2':
     resolution: {integrity: sha512-c9h9dVVMigMPc4bwTvC5dxqtqJZwQPePsWjPlpSOnojbor6pGqdk541lfA7AqFQr5pB1BRdq0juY9db81BwyFw==}
 
-  '@types/eslint-plugin-security@3.0.0':
-    resolution: {integrity: sha512-CpJ7dhqhfURdYHAlaQM4vfl75lDYnGl5+EZKoO/fW0hEREZa9+EBn1g10XLDM6n5yJSuTAPn5afkM4vNzhlyFQ==}
-
-  '@types/eslint@9.6.1':
-    resolution: {integrity: sha512-FXx2pKgId/WyYo2jXw63kk7/+TY7u7AziEJxJAnSFzHlqTAS3Ync6SvgYAN/k4/PQpnnVuzoMuVnByKK2qp0ag==}
-
   '@types/estree-jsx@1.0.5':
     resolution: {integrity: sha512-52CcUVNFyfb1A2ALocQw/Dd1BQFNmSdkuC3BkZ6iqhdMfQz7JWOFRuJFloOzjk+6WijU56m9oKXFAXc7o3Towg==}
 
@@ -2493,8 +2515,20 @@ packages:
     resolution: {integrity: sha512-35mSku4ZXK0vfCuHEDAwt55dg2jNajHZ1odvF+8SSr82EsZY4QmXfuWso8oEd8zRhVObSN18aM0CjSdoBX7zIw==}
     engines: {node: '>=0.10.0'}
 
+  dotenv-cli@8.0.0:
+    resolution: {integrity: sha512-aLqYbK7xKOiTMIRf1lDPbI+Y+Ip/wo5k3eyp6ePysVaSqbyxjyK3dK35BTxG+rmd7djf5q2UPs4noPNH+cj0Qw==}
+    hasBin: true
+
+  dotenv-expand@10.0.0:
+    resolution: {integrity: sha512-GopVGCpVS1UKH75VKHGuQFqS1Gusej0z4FyQkPdwjil2gNIv+LNsqBlboOzpJFZKVT95GkCyWJbBSdFEFUWI2A==}
+    engines: {node: '>=12'}
+
   dotenv@16.0.3:
     resolution: {integrity: sha512-7GO6HghkA5fYG9TYnNxi14/7K9f5occMlp3zXAuSxn7CKCxt9xbNWG7yF8hTCSUchlfWSe3uLmlPfigevRItzQ==}
+    engines: {node: '>=12'}
+
+  dotenv@16.6.1:
+    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
     engines: {node: '>=12'}
 
   dunder-proto@1.0.1:
@@ -4233,6 +4267,9 @@ packages:
     resolution: {integrity: sha512-LiQAFS6iWvnY8ViGtoPgduWBeuGH9B32XR4p8H8jxU5PudwyHiiyf1jQW0fCC8gCCTz9itkIbqZLIyUu5AG33w==}
     hasBin: true
 
+  tw-animate-css@1.4.0:
+    resolution: {integrity: sha512-7bziOlRqH0hJx80h/3mbicLW7o8qLsH5+RaLR2t+OHM3D0JlWGODQKQ4cxbK7WlvmUxpcj6Kgu6EKqjrGFe3QQ==}
+
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
     engines: {node: '>= 0.8.0'}
@@ -4587,7 +4624,7 @@ snapshots:
       react-dom: 19.2.2(react@19.2.2)
       tslib: 2.8.1
 
-  '@clerk/nextjs@6.35.6(next@16.1.3(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react-dom@19.2.2(react@19.2.2))(react@19.2.2)':
+  '@clerk/nextjs@6.36.8(next@16.1.3(react-dom@19.2.2(react@19.2.2))(react@19.2.2))(react-dom@19.2.2(react@19.2.2))(react@19.2.2)':
     dependencies:
       '@clerk/backend': 2.29.3(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
       '@clerk/clerk-react': 5.59.4(react-dom@19.2.2(react@19.2.2))(react@19.2.2)
@@ -5600,15 +5637,6 @@ snapshots:
 
   '@types/deep-eql@4.0.2': {}
 
-  '@types/eslint-plugin-security@3.0.0':
-    dependencies:
-      '@types/eslint': 9.6.1
-
-  '@types/eslint@9.6.1':
-    dependencies:
-      '@types/estree': 1.0.8
-      '@types/json-schema': 7.0.15
-
   '@types/estree-jsx@1.0.5':
     dependencies:
       '@types/estree': 1.0.8
@@ -6177,7 +6205,18 @@ snapshots:
     dependencies:
       esutils: 2.0.3
 
+  dotenv-cli@8.0.0:
+    dependencies:
+      cross-spawn: 7.0.6
+      dotenv: 16.6.1
+      dotenv-expand: 10.0.0
+      minimist: 1.2.8
+
+  dotenv-expand@10.0.0: {}
+
   dotenv@16.0.3: {}
+
+  dotenv@16.6.1: {}
 
   dunder-proto@1.0.1:
     dependencies:
@@ -6389,8 +6428,8 @@ snapshots:
       '@next/eslint-plugin-next': 16.1.3
       eslint: 9.39.1(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.6.1))
-      eslint-plugin-import: 2.32.0(eslint@9.39.1(jiti@2.6.1))
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(eslint@9.39.1(jiti@2.6.1)))(eslint@9.39.1(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.1(jiti@2.6.1))
       eslint-plugin-jsx-a11y: 6.10.2(eslint@9.39.1(jiti@2.6.1))
       eslint-plugin-react: 7.37.5(eslint@9.39.1(jiti@2.6.1))
       eslint-plugin-react-hooks: 7.0.1(eslint@9.39.1(jiti@2.6.1))
@@ -6412,7 +6451,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.6.1)):
+  eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(eslint@9.39.1(jiti@2.6.1)))(eslint@9.39.1(jiti@2.6.1)):
     dependencies:
       '@nolyfill/is-core-module': 1.0.39
       debug: 4.4.3
@@ -6423,7 +6462,7 @@ snapshots:
       tinyglobby: 0.2.15
       unrs-resolver: 1.11.1
     optionalDependencies:
-      eslint-plugin-import: 2.32.0(eslint@9.39.1(jiti@2.6.1))
+      eslint-plugin-import: 2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.1(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -6437,13 +6476,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.12.1(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.1(jiti@2.6.1)):
+  eslint-module-utils@2.12.1(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(eslint@9.39.1(jiti@2.6.1)))(eslint@9.39.1(jiti@2.6.1)))(eslint@9.39.1(jiti@2.6.1)):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
       eslint: 9.39.1(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0)(eslint@9.39.1(jiti@2.6.1))
+      eslint-import-resolver-typescript: 3.10.1(eslint-plugin-import@2.32.0(eslint@9.39.1(jiti@2.6.1)))(eslint@9.39.1(jiti@2.6.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -6476,7 +6515,7 @@ snapshots:
       - eslint-import-resolver-webpack
       - supports-color
 
-  eslint-plugin-import@2.32.0(eslint@9.39.1(jiti@2.6.1)):
+  eslint-plugin-import@2.32.0(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.1(jiti@2.6.1)):
     dependencies:
       '@rtsao/scc': 1.1.0
       array-includes: 3.1.9
@@ -6487,7 +6526,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.39.1(jiti@2.6.1)
       eslint-import-resolver-node: 0.3.9
-      eslint-module-utils: 2.12.1(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.1(jiti@2.6.1))
+      eslint-module-utils: 2.12.1(eslint-import-resolver-node@0.3.9)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(eslint@9.39.1(jiti@2.6.1)))(eslint@9.39.1(jiti@2.6.1)))(eslint@9.39.1(jiti@2.6.1))
       hasown: 2.0.2
       is-core-module: 2.16.1
       is-glob: 4.0.3
@@ -8432,6 +8471,8 @@ snapshots:
       turbo-linux-arm64: 2.6.2
       turbo-windows-64: 2.6.2
       turbo-windows-arm64: 2.6.2
+
+  tw-animate-css@1.4.0: {}
 
   type-check@0.4.0:
     dependencies:

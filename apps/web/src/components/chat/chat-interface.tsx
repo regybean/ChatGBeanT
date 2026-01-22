@@ -64,7 +64,7 @@ export function ChatInterface({
 
     // Ensure user exists
     useEffect(() => {
-        getOrCreateUser();
+        void getOrCreateUser();
     }, [getOrCreateUser]);
 
     // Scroll to bottom when messages change
@@ -120,7 +120,7 @@ export function ChatInterface({
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSubmit(e);
+            void handleSubmit(e);
         }
     };
 

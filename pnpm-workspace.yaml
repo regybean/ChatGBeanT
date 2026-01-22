@@ -21,7 +21,7 @@ catalog:
 
   # Auth
   "@clerk/clerk-react": "5.57.1"
-  "@clerk/nextjs": "6.35.6"
+  "@clerk/nextjs": "6.36.8"
   "@clerk/themes": "^2.4.19"
 
   # ESLint

@@ -12,7 +12,10 @@
         "OPENROUTER_API_KEY",
         "CLERK_SECRET_KEY",
         "NODE_ENV",
-        "LOG_LEVEL"
+        "LOG_LEVEL",
+        "CI",
+        "SKIP_ENV_VALIDATION",
+        "npm_lifecycle_event"
     ],
     "tasks": {
         "build": {

@@ -1,33 +1,25 @@
 'use client';
 
-import { ClerkProvider, useAuth } from '@clerk/nextjs';
-import { ConvexProviderWithClerk } from 'convex/react-clerk';
-import { ConvexReactClient } from 'convex/react';
+import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from 'next-themes';
-
+import ConvexClientProvider from '~/components/convex-client-provider'
 import { Toaster } from '@chatgbeant/ui/toaster';
 
-import { env } from '~/env';
-
-const convex = new ConvexReactClient(env.NEXT_PUBLIC_CONVEX_URL);
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <ThemeProvider
-      attribute="class"
-      defaultTheme="dark"
-      enableSystem
-      disableTransitionOnChange
-    >
-      <ClerkProvider
-        publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-        afterSignOutUrl="/"
-      >
-        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
-          {children}
-          <Toaster />
-        </ConvexProviderWithClerk>
-      </ClerkProvider>
-    </ThemeProvider>
-  );
+    return (
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="dark"
+            enableSystem
+            disableTransitionOnChange
+        >
+            <ClerkProvider>
+                <ConvexClientProvider>
+                    {children}
+                    <Toaster />
+                </ConvexClientProvider>
+            </ClerkProvider>
+        </ThemeProvider>
+    );
 }

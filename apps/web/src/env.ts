@@ -1,10 +1,7 @@
 import { createEnv } from '@t3-oss/env-nextjs';
 import { z } from 'zod';
 
-import { authEnv } from '@chatgbeant/auth/env';
-
 export const env = createEnv({
-    extends: [authEnv()],
     server: {
         CONVEX_DEPLOYMENT: z.string().optional(),
         OPENROUTER_API_KEY: z.string().min(1),
@@ -24,5 +21,7 @@ export const env = createEnv({
             process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     },
     skipValidation:
-        !!process.env.CI || process.env.npm_lifecycle_event === 'lint',
+        !!process.env.CI ||
+        !!process.env.SKIP_ENV_VALIDATION ||
+        process.env.npm_lifecycle_event === 'lint',
 });

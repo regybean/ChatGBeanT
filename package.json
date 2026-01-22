@@ -13,10 +13,12 @@
         "deps:check": "pnpm outdated",
         "deps:format": "pnpm sort-package-json 'package.json' 'apps/*/package.json' 'backend/package.json' 'packages/*/package.json' 'tooling/*/package.json'",
         "deps:lint": "syncpack lint",
-        "deps:update": "pnpm update -i -r --latest"
+        "deps:update": "pnpm update -i -r --latest",
+        "with-env": "dotenv -e ./.env --"
     },
     "devDependencies": {
         "convex": "catalog:",
+        "dotenv-cli": "^8.0.0",
         "prettier": "catalog:",
         "sort-package-json": "3.6.0",
         "syncpack": "13.0.4",
