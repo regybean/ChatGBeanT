@@ -14,7 +14,21 @@ const TOKEN_LIMITS = {
 } as const;
 
 /**
+ * Helper to extract role from Clerk identity metadata
+ * Clerk JWT must include: { "metadata": "{{user.public_metadata}}" }
+ */
+function getRoleFromIdentity(identity: { [key: string]: unknown }): 'user' | 'admin' {
+  const metadata = identity.metadata as { role?: string } | undefined;
+  const role = metadata?.role;
+  if (role === 'admin') {
+    return 'admin';
+  }
+  return 'user';
+}
+
+/**
  * Get or create a user based on Clerk identity
+ * Role is synced from Clerk metadata on every call
  */
 export const getOrCreate = mutation({
   args: {},
@@ -25,27 +39,33 @@ export const getOrCreate = mutation({
     }
 
     const clerkId = identity.subject;
+    // Get role from Clerk's JWT metadata (source of truth)
+    const roleFromClerk = getRoleFromIdentity(identity as unknown as { [key: string]: unknown });
+
     const existing = await ctx.db
       .query('users')
       .withIndex('by_clerk_id', (q) => q.eq('clerkId', clerkId))
       .first();
 
     if (existing) {
-      // Check if token reset is needed (monthly)
       const now = Date.now();
       const lastReset = existing.lastTokenReset;
       const lastResetDate = new Date(lastReset);
       const currentDate = new Date(now);
 
-      if (
+      const needsTokenReset =
         lastResetDate.getMonth() !== currentDate.getMonth() ||
-        lastResetDate.getFullYear() !== currentDate.getFullYear()
-      ) {
-        // Reset tokens for new month
+        lastResetDate.getFullYear() !== currentDate.getFullYear();
+
+      // Sync role from Clerk and reset tokens if needed
+      if (needsTokenReset || existing.role !== roleFromClerk) {
         await ctx.db.patch(existing._id, {
-          basicTokensUsed: 0,
-          premiumTokensUsed: 0,
-          lastTokenReset: now,
+          ...(needsTokenReset && {
+            basicTokensUsed: 0,
+            premiumTokensUsed: 0,
+            lastTokenReset: now,
+          }),
+          role: roleFromClerk,
           updatedAt: now,
         });
       }
@@ -53,7 +73,7 @@ export const getOrCreate = mutation({
       return existing._id;
     }
 
-    // Create new user
+    // Create new user with role from Clerk
     const now = Date.now();
     const userId = await ctx.db.insert('users', {
       clerkId,
@@ -61,7 +81,7 @@ export const getOrCreate = mutation({
       name: identity.name,
       imageUrl: identity.pictureUrl,
       tier: 'basic',
-      role: 'user',
+      role: roleFromClerk,
       basicTokensUsed: 0,
       premiumTokensUsed: 0,
       lastTokenReset: now,
