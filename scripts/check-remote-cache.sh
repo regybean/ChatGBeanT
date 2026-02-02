@@ -1,10 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
-# Check if TURBO_REMOTE_CACHE_SIGNATURE_KEY is set
-if [ -z "$TURBO_REMOTE_CACHE_SIGNATURE_KEY" ]; then
-  echo ""
-  echo "  WARNING: Remote cache not configured."
-  echo "  Set TURBO_REMOTE_CACHE_SIGNATURE_KEY for faster builds."
-  echo "  See: https://turbo.build/repo/docs/core-concepts/remote-caching"
-  echo ""
+OUTPUT="$(npx turbo run build --dry 2>&1 || true)"
+
+if echo "$OUTPUT" | grep -q "Cached (Remote)"; then
+  exit 0
 fi
+
+echo ""
+echo "❌ Turbo remote cache is required for development."
+echo "Please run:"
+echo "  npx turbo login"
+echo "  npx turbo link"
+echo ""
+exit 1

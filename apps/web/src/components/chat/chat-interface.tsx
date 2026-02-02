@@ -39,7 +39,6 @@ export function ChatInterface({
 
     const currentUser = useQuery(api.users.getCurrent);
     const getOrCreateUser = useMutation(api.users.getOrCreate);
-    const sendMessage = useMutation(api.messages.send);
     const chat = useAction(api.openrouter.chat);
 
     // Draft key for localStorage
@@ -94,13 +93,7 @@ export function ChatInterface({
                 throw new Error('No chat ID');
             }
 
-            // Send user message
-            await sendMessage({
-                chatId: targetChatId,
-                content,
-            });
-
-            // Get AI response
+            // Get AI response (this also saves both user and assistant messages)
             await chat({
                 chatId: targetChatId,
                 userMessage: content,

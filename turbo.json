@@ -17,12 +17,8 @@
             ]
         },
         "dev": {
-            "dependsOn": [
-                "^dev"
-            ],
             "cache": false,
-            "persistent": false,
-            "interactive": true
+            "persistent": true
         },
         "format": {
             "outputs": [
