@@ -15,10 +15,10 @@ export default function ChatPage({
 }) {
     const { chatId } = use(params);
     const chat = useQuery(api.chats.get, {
-        chatId: chatId as unknown as Id<'chats'>,
+        chatId: chatId,
     });
     const messages = useQuery(api.messages.list, {
-        chatId: chatId as unknown as Id<'chats'>,
+        chatId: chatId,
     });
 
     if (chat === undefined || messages === undefined) {

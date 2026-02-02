@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as chats from "../chats.js";
+import type * as env from "../env.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 import type * as models from "../models.js";
@@ -27,6 +28,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   chats: typeof chats;
+  env: typeof env;
   http: typeof http;
   messages: typeof messages;
   models: typeof models;

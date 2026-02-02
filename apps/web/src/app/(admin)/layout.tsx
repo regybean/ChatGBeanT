@@ -23,6 +23,7 @@ export default function AdminLayout({
             </div>
         );
     }
+    console.log('Current User:', currentUser, 'Authenticated:', isAuthenticated, 'isAdmin:', currentUser?.role === 'admin');
 
     if (!isAuthenticated || currentUser?.role !== 'admin') {
         redirect('/c/new');

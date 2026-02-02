@@ -4,12 +4,13 @@
     "private": true,
     "scripts": {
         "setup": "convex dev --until-success",
-        "typecheck": "tsc --noEmit -p convex"
+        "typecheck": "tsc --noEmit -p convex",
+        "dev": "convex dev"
     },
     "dependencies": {
         "@convex-dev/rate-limiter": "^0.3.2",
-        "convex": "catalog:",
         "@t3-oss/env-nextjs": "catalog:",
+        "convex": "catalog:",
         "zod": "catalog:"
     },
     "devDependencies": {

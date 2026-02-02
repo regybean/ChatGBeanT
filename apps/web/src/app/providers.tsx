@@ -4,7 +4,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import { ThemeProvider } from 'next-themes';
 import ConvexClientProvider from '~/components/convex-client-provider'
 import { Toaster } from '@chatgbeant/ui/toaster';
-
+import { env } from '~/env';
 
 export function Providers({ children }: { children: React.ReactNode }) {
     return (
@@ -14,7 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             enableSystem
             disableTransitionOnChange
         >
-            <ClerkProvider>
+            <ClerkProvider publishableKey={env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
                 <ConvexClientProvider>
                     {children}
                     <Toaster />
