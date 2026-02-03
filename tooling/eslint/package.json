@@ -1,18 +1,18 @@
 {
     "name": "@chatgbeant/eslint-config",
     "dependencies": {
-        "@eslint/compat": "^2.0.0",
+        "@eslint/compat": "catalog:",
         "@eslint/js": "catalog:",
-        "@next/eslint-plugin-next": "^16.0.10",
-        "eslint-plugin-import": "^2.32.0",
-        "eslint-plugin-react": "^7.37.5",
-        "eslint-plugin-react-hooks": "^7.0.1",
-        "eslint-plugin-security": "^3.0.1",
-        "eslint-plugin-sonarjs": "^3.0.5",
-        "eslint-plugin-testing-library": "^7.15.1",
-        "eslint-plugin-turbo": "^2.6.3",
-        "eslint-plugin-unicorn": "^62.0.0",
-        "typescript-eslint": "^8.50.0"
+        "@next/eslint-plugin-next": "catalog:",
+        "eslint-plugin-import": "catalog:",
+        "eslint-plugin-react": "catalog:",
+        "eslint-plugin-react-hooks": "catalog:",
+        "eslint-plugin-security": "catalog:",
+        "eslint-plugin-sonarjs": "catalog:",
+        "eslint-plugin-testing-library": "catalog:",
+        "eslint-plugin-turbo": "catalog:",
+        "eslint-plugin-unicorn": "catalog:",
+        "typescript-eslint": "catalog:"
     },
     "devDependencies": {
         "@chatgbeant/prettier-config": "workspace:*",

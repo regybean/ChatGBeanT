@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useQuery } from 'convex/react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery } from 'convex/react';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
 
@@ -10,7 +10,27 @@ import { UserTable } from '~/components/admin/user-table';
 
 export default function UsersPage() {
     const [search, setSearch] = useState('');
-    const usersData = useQuery(api.admin.listUsers, { search: search || undefined });
+    const [userSynced, setUserSynced] = useState(false);
+    const getOrCreateUser = useMutation(api.users.getOrCreate);
+
+    // Sync user role from Clerk to Convex on mount
+    useEffect(() => {
+        void getOrCreateUser().then(() => setUserSynced(true));
+    }, [getOrCreateUser]);
+
+    // Only run admin query after user is synced
+    const usersData = useQuery(
+        api.admin.listUsers,
+        userSynced ? { search: search || undefined } : 'skip'
+    );
+
+    if (!userSynced) {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

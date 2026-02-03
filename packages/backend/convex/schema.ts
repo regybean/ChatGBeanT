@@ -16,23 +16,14 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_clerk_id', ['clerkId']),
 
-  chats: defineTable({
+  userThreads: defineTable({
     userId: v.id('users'),
+    threadId: v.string(),
     title: v.optional(v.string()),
     model: v.string(),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_user_updated', ['userId', 'updatedAt']),
-
-  messages: defineTable({
-    chatId: v.id('chats'),
-    role: v.union(
-      v.literal('user'),
-      v.literal('assistant'),
-      v.literal('system'),
-    ),
-    content: v.string(),
-    model: v.optional(v.string()),
-    createdAt: v.number(),
-  }).index('by_chat_created', ['chatId', 'createdAt']),
+  })
+    .index('by_user_updated', ['userId', 'updatedAt'])
+    .index('by_thread_id', ['threadId']),
 });

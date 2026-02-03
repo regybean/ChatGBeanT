@@ -18,7 +18,7 @@
     },
     "devDependencies": {
         "convex": "catalog:",
-        "dotenv-cli": "^8.0.0",
+        "dotenv-cli": "^11.0.0",
         "prettier": "catalog:",
         "syncpack": "13.0.4",
         "turbo": "catalog:"

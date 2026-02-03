@@ -1,6 +1,13 @@
 {
     "$schema": "https://turborepo.com/schema.json",
     "ui": "tui",
+    "globalEnv": [
+        "NODE_ENV",
+        "LOG_LEVEL",
+        "CI",
+        "SKIP_ENV_VALIDATION",
+        "npm_lifecycle_event"
+    ],
     "tasks": {
         "topo": {
             "dependsOn": [

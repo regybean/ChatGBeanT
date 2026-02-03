@@ -8,8 +8,12 @@
         "dev": "convex dev"
     },
     "dependencies": {
-        "@convex-dev/rate-limiter": "^0.3.2",
+        "@ai-sdk/provider": "catalog:",
+        "@convex-dev/agent": "catalog:",
+        "@convex-dev/rate-limiter": "catalog:",
+        "@openrouter/ai-sdk-provider": "catalog:",
         "@t3-oss/env-nextjs": "catalog:",
+        "ai": "catalog:",
         "convex": "catalog:",
         "zod": "catalog:"
     },
