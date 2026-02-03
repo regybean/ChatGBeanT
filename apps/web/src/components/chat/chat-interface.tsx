@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useAction, useQuery } from 'convex/react';
+import { useUIMessages } from '@convex-dev/agent/react';
 import { Send, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,6 +19,7 @@ interface ChatInterfaceProps {
   threadId?: string;
   initialModel?: string;
   onFirstMessage?: (content: string, model: string) => Promise<string>;
+  onMessageSent?: (threadId: string) => void;
 }
 
 const DRAFT_KEY_PREFIX = 'chatgbeant:draft:';
@@ -27,6 +29,7 @@ export function ChatInterface({
   threadId,
   initialModel = 'anthropic/claude-3.5-haiku',
   onFirstMessage,
+  onMessageSent,
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,10 +38,14 @@ export function ChatInterface({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const currentUser = useQuery(api.users.getCurrent);
-  const messages = useQuery(
+
+  // Use agent's useUIMessages hook for real-time streaming support
+  const { results: messages, status: messagesStatus } = useUIMessages(
     api.chat.listMessages,
-    threadId ? { threadId } : 'skip'
+    threadId ? { threadId } : 'skip',
+    { initialNumItems: 100, stream: true }
   );
+
   const sendMessage = useAction(api.chat.sendMessage);
 
   // Draft key for localStorage
@@ -93,6 +100,11 @@ export function ChatInterface({
         content,
         model: selectedModel,
       });
+
+      // Notify parent that message was sent (for redirecting on new chats)
+      if (onMessageSent) {
+        onMessageSent(targetThreadId);
+      }
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : 'Failed to send message',
@@ -113,8 +125,8 @@ export function ChatInterface({
 
   const hasMessages = messages && messages.length > 0;
 
-  // Find a pending message (streaming)
-  const streamingMessage = messages?.find((m) => m.status === 'pending');
+  // Check if any message is currently streaming
+  const isAnyStreaming = messages?.some((m) => m.status === 'streaming') ?? false;
 
   return (
     <div className="flex h-full flex-col">
@@ -123,9 +135,8 @@ export function ChatInterface({
           <div className="mx-auto max-w-3xl space-y-4">
             {messages.map((message, index) => (
               <MessageBubble
-                key={message.id ?? `msg-${index}`}
+                key={message.key ?? `msg-${index}`}
                 message={message}
-                isStreaming={message.status === 'pending'}
               />
             ))}
           </div>
@@ -158,15 +169,15 @@ export function ChatInterface({
               onKeyDown={handleKeyDown}
               placeholder="Type your message..."
               className="min-h-[100px] resize-none pr-12"
-              disabled={isLoading || !!streamingMessage}
+              disabled={isLoading || isAnyStreaming}
             />
             <Button
               type="submit"
               size="icon"
               className="absolute bottom-2 right-2"
-              disabled={!input.trim() || isLoading || !!streamingMessage}
+              disabled={!input.trim() || isLoading || isAnyStreaming}
             >
-              {isLoading || streamingMessage ? (
+              {isLoading || isAnyStreaming ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Send className="h-4 w-4" />

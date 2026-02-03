@@ -1,33 +1,28 @@
 'use client';
 
 import { User, Bot, Loader2 } from 'lucide-react';
+import { useSmoothText } from '@convex-dev/agent/react';
+import type { UIMessage } from '@convex-dev/agent';
 
 import { cn } from '@chatgbeant/ui/cn';
 import { MarkdownContent } from '@chatgbeant/ui/markdown-content';
 import { Avatar, AvatarFallback } from '@chatgbeant/ui/avatar';
 
-// Type for messages from @convex-dev/agent listMessages
-interface AgentMessage {
-  id?: string;
-  role?: 'user' | 'assistant' | 'system' | 'tool';
-  text?: string;
-  status?: 'pending' | 'success' | 'failed';
-  tool?: boolean;
-}
-
 interface MessageBubbleProps {
-  message: AgentMessage;
-  isStreaming?: boolean;
+  message: UIMessage;
 }
 
-export function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
+export function MessageBubble({ message }: MessageBubbleProps) {
   const isUser = message.role === 'user';
+  const isStreaming = message.status === 'streaming';
 
-  // Get the text content from the message
-  const rawText = message.text ?? '';
+  // Use smooth text for streaming messages - this creates the typewriter effect
+  const [visibleText] = useSmoothText(message.text ?? '', {
+    startStreaming: isStreaming,
+  });
 
   // Show typing indicator when streaming but no content yet
-  const showTypingIndicator = isStreaming && !rawText;
+  const showTypingIndicator = isStreaming && !visibleText;
 
   return (
     <div
@@ -55,12 +50,12 @@ export function MessageBubble({ message, isStreaming = false }: MessageBubblePro
           </div>
         )}
         {!showTypingIndicator && isUser && (
-          <p className="whitespace-pre-wrap">{rawText}</p>
+          <p className="whitespace-pre-wrap">{visibleText}</p>
         )}
         {!showTypingIndicator && !isUser && (
           <>
-            <MarkdownContent content={rawText} />
-            {isStreaming && rawText && (
+            <MarkdownContent content={visibleText} />
+            {isStreaming && visibleText && (
               <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-foreground/50" />
             )}
           </>

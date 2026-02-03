@@ -2,6 +2,7 @@
 
 import { useMutation } from 'convex/react';
 import { useRouter } from 'next/navigation';
+import { useState, useCallback } from 'react';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
 
@@ -10,18 +11,29 @@ import { ChatInterface } from '~/components/chat/chat-interface';
 export default function NewChatPage() {
   const router = useRouter();
   const createThread = useMutation(api.chat.createThread);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
-  const handleFirstMessage = async (content: string, model: string) => {
-    try {
-      const { threadId } = await createThread({ model });
-      router.push(`/c/${threadId}`);
-      return threadId;
-    } catch {
-      throw new Error('Failed to create chat');
-    }
-  };
+  // Called when user sends first message - just creates thread
+  // ChatInterface handles sending the actual message
+  const handleFirstMessage = useCallback(async (_content: string, model: string) => {
+    const { threadId } = await createThread({ model });
+    // Set threadId so ChatInterface can start showing/sending messages
+    setActiveThreadId(threadId);
+    return threadId;
+  }, [createThread]);
+
+  // Redirect to thread page after message is sent successfully
+  // This is triggered by ChatInterface completing the sendMessage
+  const handleMessageSent = useCallback((threadId: string) => {
+    router.push(`/c/${threadId}`);
+  }, [router]);
 
   return (
-    <ChatInterface isNewChat={true} onFirstMessage={handleFirstMessage} />
+    <ChatInterface
+      isNewChat={!activeThreadId}
+      threadId={activeThreadId ?? undefined}
+      onFirstMessage={handleFirstMessage}
+      onMessageSent={handleMessageSent}
+    />
   );
 }

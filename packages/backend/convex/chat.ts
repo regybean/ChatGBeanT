@@ -267,16 +267,19 @@ export const sendMessage = action({
 });
 
 /**
- * List messages for a thread
+ * List messages for a thread with streaming support
+ * This query is designed to work with useUIMessages hook
  */
 export const listMessages = query({
     args: {
         threadId: v.string(),
+        paginationOpts: paginationOptsValidator,
+        streamArgs: vStreamArgs,
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            return [];
+            throw new Error('Not authenticated');
         }
 
         const user = await ctx.db
@@ -285,7 +288,7 @@ export const listMessages = query({
             .first();
 
         if (!user) {
-            return [];
+            throw new Error('User not found');
         }
 
         // Verify ownership
@@ -295,16 +298,22 @@ export const listMessages = query({
             .first();
 
         if (!userThread || userThread.userId !== user._id) {
-            return [];
+            throw new Error('Thread not found');
         }
 
-        // Get messages using agent's listMessages for streaming support
-        const result = await chatAgent.listMessages(ctx, {
+        // Get messages using listUIMessages for UI-friendly format
+        const paginated = await listUIMessages(ctx, components.agent, {
             threadId: args.threadId,
-            paginationOpts: { numItems: 100, cursor: null },
+            paginationOpts: args.paginationOpts,
         });
 
-        return result.page;
+        // Sync streams for real-time streaming updates
+        const streams = await syncStreams(ctx, components.agent, {
+            threadId: args.threadId,
+            streamArgs: args.streamArgs,
+        });
+
+        return { ...paginated, streams };
     },
 });
 
