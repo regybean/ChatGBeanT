@@ -40,7 +40,7 @@ export function ChatInterface({
   const currentUser = useQuery(api.users.getCurrent);
 
   // Use agent's useUIMessages hook for real-time streaming support
-  const { results: messages, status: messagesStatus } = useUIMessages(
+  const { results: messages } = useUIMessages(
     api.chat.listMessages,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 100, stream: true }
@@ -75,7 +75,7 @@ export function ChatInterface({
     }
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: { preventDefault: () => void }) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
@@ -123,20 +123,21 @@ export function ChatInterface({
     }
   };
 
-  const hasMessages = messages && messages.length > 0;
+  const hasMessages = messages.length > 0;
 
   // Check if any message is currently streaming
-  const isAnyStreaming = messages?.some((m) => m.status === 'streaming') ?? false;
+  const isAnyStreaming = messages.some((m) => m.status === 'streaming');
 
   return (
     <div className="flex h-full flex-col">
       {hasMessages ? (
         <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-          <div className="mx-auto max-w-3xl space-y-4">
-            {messages.map((message, index) => (
+          <div className="mx-auto max-w-3xl space-y-6">
+            {messages.map((message) => (
               <MessageBubble
-                key={message.key ?? `msg-${index}`}
+                key={message.key}
                 message={message}
+                model={message.role === 'assistant' ? selectedModel : undefined}
               />
             ))}
           </div>
@@ -158,7 +159,6 @@ export function ChatInterface({
               value={selectedModel}
               onChange={setSelectedModel}
               userTier={currentUser?.tier ?? 'basic'}
-              disabled={!isNewChat && hasMessages}
             />
           </div>
           <div className="relative">

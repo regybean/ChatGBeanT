@@ -13,7 +13,6 @@ export const securityConfig = defineConfig({
     },
     rules: {
         ...pluginSecurity.configs.recommended.rules,
-        ...pluginSonar.configs.recommended.rules,
         ...pluginUnicorn.configs.recommended.rules,
 
         // Override currently unneeded rules

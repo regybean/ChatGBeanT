@@ -17,11 +17,14 @@ catalog:
   '@next/eslint-plugin-next': 16.1.6
   '@openrouter/ai-sdk-provider': ^2.1.1
   '@radix-ui/react-avatar': ^1.1.11
+  '@radix-ui/react-dialog': ^1.1.11
   '@radix-ui/react-dropdown-menu': ^2.1.16
   '@radix-ui/react-label': ^2.1.8
+  '@radix-ui/react-popover': ^1.1.11
   '@radix-ui/react-scroll-area': ^1.2.10
   '@radix-ui/react-select': ^2.2.6
   '@radix-ui/react-slot': ^1.2.4
+  cmdk: ^1.1.1
   '@t3-oss/env-core': 0.13.10
   '@t3-oss/env-nextjs': ^0.13.10
   '@tailwindcss/postcss': 4.1.18

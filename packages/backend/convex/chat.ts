@@ -408,3 +408,217 @@ export const deleteUserThread = internalMutation({
         await ctx.db.delete(args.userThreadId);
     },
 });
+
+/**
+ * Rename a thread
+ */
+export const renameThread = mutation({
+    args: {
+        threadId: v.string(),
+        title: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const userThread = await ctx.db
+            .query('userThreads')
+            .withIndex('by_thread_id', (q) => q.eq('threadId', args.threadId))
+            .first();
+
+        if (!userThread || userThread.userId !== user._id) {
+            throw new Error('Thread not found');
+        }
+
+        await ctx.db.patch(userThread._id, {
+            title: args.title.trim(),
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/**
+ * Toggle pin status of a thread
+ */
+export const togglePinThread = mutation({
+    args: {
+        threadId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const userThread = await ctx.db
+            .query('userThreads')
+            .withIndex('by_thread_id', (q) => q.eq('threadId', args.threadId))
+            .first();
+
+        if (!userThread || userThread.userId !== user._id) {
+            throw new Error('Thread not found');
+        }
+
+        const isPinned = !userThread.isPinned;
+        await ctx.db.patch(userThread._id, {
+            isPinned,
+            pinnedAt: isPinned ? Date.now() : undefined,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/**
+ * List threads grouped by date
+ */
+export const listThreadsGrouped = query({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return { pinned: [], today: [], last7Days: [], last30Days: [], older: [] };
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            return { pinned: [], today: [], last7Days: [], last30Days: [], older: [] };
+        }
+
+        const threads = await ctx.db
+            .query('userThreads')
+            .withIndex('by_user_updated', (q) => q.eq('userId', user._id))
+            .order('desc')
+            .collect();
+
+        const now = Date.now();
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayMs = todayStart.getTime();
+        const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+        const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+
+        const pinned: typeof threads = [];
+        const today: typeof threads = [];
+        const last7Days: typeof threads = [];
+        const last30Days: typeof threads = [];
+        const older: typeof threads = [];
+
+        for (const thread of threads) {
+            if (thread.isPinned) {
+                pinned.push(thread);
+            } else if (thread.updatedAt >= todayMs) {
+                today.push(thread);
+            } else if (thread.updatedAt >= sevenDaysAgo) {
+                last7Days.push(thread);
+            } else if (thread.updatedAt >= thirtyDaysAgo) {
+                last30Days.push(thread);
+            } else {
+                older.push(thread);
+            }
+        }
+
+        // Sort pinned by pinnedAt descending
+        pinned.sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
+
+        return { pinned, today, last7Days, last30Days, older };
+    },
+});
+
+/**
+ * Search threads by title
+ */
+export const searchThreads = query({
+    args: {
+        searchTerm: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            return [];
+        }
+
+        const threads = await ctx.db
+            .query('userThreads')
+            .withIndex('by_user_updated', (q) => q.eq('userId', user._id))
+            .order('desc')
+            .collect();
+
+        const search = args.searchTerm.toLowerCase();
+        return threads.filter((thread) => {
+            const title = thread.title ?? 'New conversation';
+            return title.toLowerCase().includes(search);
+        });
+    },
+});
+
+/**
+ * Update model for a thread
+ */
+export const updateThreadModel = mutation({
+    args: {
+        threadId: v.string(),
+        model: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const userThread = await ctx.db
+            .query('userThreads')
+            .withIndex('by_thread_id', (q) => q.eq('threadId', args.threadId))
+            .first();
+
+        if (!userThread || userThread.userId !== user._id) {
+            throw new Error('Thread not found');
+        }
+
+        await ctx.db.patch(userThread._id, {
+            model: args.model,
+            updatedAt: Date.now(),
+        });
+    },
+});

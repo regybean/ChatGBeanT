@@ -11,10 +11,14 @@
 import type * as admin from "../admin.js";
 import type * as agent from "../agent.js";
 import type * as chat from "../chat.js";
+import type * as crons from "../crons.js";
 import type * as env from "../env.js";
+import type * as files from "../files.js";
 import type * as models from "../models.js";
+import type * as openrouter from "../openrouter.js";
 import type * as rateLimiterConfig from "../rateLimiterConfig.js";
 import type * as ratelimit from "../ratelimit.js";
+import type * as settings from "../settings.js";
 import type * as users from "../users.js";
 import type * as utils from "../utils.js";
 
@@ -28,10 +32,14 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   agent: typeof agent;
   chat: typeof chat;
+  crons: typeof crons;
   env: typeof env;
+  files: typeof files;
   models: typeof models;
+  openrouter: typeof openrouter;
   rateLimiterConfig: typeof rateLimiterConfig;
   ratelimit: typeof ratelimit;
+  settings: typeof settings;
   users: typeof users;
   utils: typeof utils;
 }>;

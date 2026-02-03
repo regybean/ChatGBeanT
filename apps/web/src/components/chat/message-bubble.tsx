@@ -7,26 +7,36 @@ import type { UIMessage } from '@convex-dev/agent';
 import { cn } from '@chatgbeant/ui/cn';
 import { MarkdownContent } from '@chatgbeant/ui/markdown-content';
 import { Avatar, AvatarFallback } from '@chatgbeant/ui/avatar';
+import { CopyButton } from '@chatgbeant/ui/copy-button';
+import { ProviderIcon } from '@chatgbeant/ui/provider-icon';
 
 interface MessageBubbleProps {
   message: UIMessage;
+  model?: string;
 }
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, model }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isStreaming = message.status === 'streaming';
 
   // Use smooth text for streaming messages - this creates the typewriter effect
-  const [visibleText] = useSmoothText(message.text ?? '', {
+  const [visibleText] = useSmoothText(message.text, {
     startStreaming: isStreaming,
   });
 
   // Show typing indicator when streaming but no content yet
   const showTypingIndicator = isStreaming && !visibleText;
 
+  // Extract model name for display
+  const displayModel = model;
+  const modelName = displayModel?.split('/').pop()?.replaceAll('-', ' ') ?? '';
+
   return (
     <div
-      className={cn('flex gap-3', isUser ? 'flex-row-reverse' : 'flex-row')}
+      className={cn(
+        'group flex gap-3',
+        isUser ? 'flex-row-reverse' : 'flex-row',
+      )}
     >
       <Avatar className="h-8 w-8 shrink-0">
         <AvatarFallback
@@ -34,32 +44,63 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             isUser ? 'bg-primary text-primary-foreground' : 'bg-muted',
           )}
         >
-          {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+          {isUser ? (
+            <User className="h-4 w-4" />
+          ) : (
+            <Bot className="h-4 w-4" />
+          )}
         </AvatarFallback>
       </Avatar>
-      <div
-        className={cn(
-          'max-w-[80%] rounded-lg px-4 py-2',
-          isUser ? 'bg-primary text-primary-foreground' : 'bg-muted',
-        )}
-      >
-        {showTypingIndicator && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span>Thinking...</span>
-          </div>
-        )}
-        {!showTypingIndicator && isUser && (
-          <p className="whitespace-pre-wrap">{visibleText}</p>
-        )}
-        {!showTypingIndicator && !isUser && (
-          <>
-            <MarkdownContent content={visibleText} />
-            {isStreaming && visibleText && (
-              <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-foreground/50" />
-            )}
-          </>
-        )}
+      <div className="flex max-w-[80%] flex-col gap-1">
+        <div
+          className={cn(
+            'relative rounded-lg px-4 py-2',
+            isUser ? 'bg-primary text-primary-foreground' : 'bg-muted',
+          )}
+        >
+          {showTypingIndicator && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Thinking...</span>
+            </div>
+          )}
+          {!showTypingIndicator && isUser && (
+            <MarkdownContent
+              content={visibleText}
+              className="prose-invert"
+            />
+          )}
+          {!showTypingIndicator && !isUser && (
+            <>
+              <MarkdownContent content={visibleText} />
+              {isStreaming && visibleText && (
+                <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-foreground/50" />
+              )}
+            </>
+          )}
+
+          {/* Copy button - visible on hover */}
+          {!showTypingIndicator && visibleText && (
+            <div
+              className={cn(
+                'absolute -bottom-8 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100',
+                isUser ? 'right-0' : 'left-0',
+              )}
+            >
+              <CopyButton text={visibleText} />
+              {!isUser && displayModel && (
+                <div className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-1 text-xs text-muted-foreground">
+                  <ProviderIcon
+                    provider=""
+                    modelId={displayModel}
+                    size={12}
+                  />
+                  <span className="capitalize">{modelName}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

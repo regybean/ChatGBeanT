@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Users, ArrowLeft, Bot } from 'lucide-react';
 
 import { Button } from '@chatgbeant/ui/button';
 import { cn } from '@chatgbeant/ui/cn';
@@ -17,6 +17,11 @@ const navItems = [
     href: '/admin/users',
     label: 'Users',
     icon: Users,
+  },
+  {
+    href: '/admin/models',
+    label: 'Models',
+    icon: Bot,
   },
 ];
 

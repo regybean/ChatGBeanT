@@ -1,15 +1,52 @@
 'use client';
 
+import { useState, useCallback } from 'react';
 import type { Components } from 'react-markdown';
-
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Check, Copy } from 'lucide-react';
 
 import { cn } from '../lib/utils';
 
 interface MarkdownContentProps {
     content: string;
     className?: string;
+}
+
+function CodeCopyButton({ code }: { code: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = useCallback(async () => {
+        try {
+            await navigator.clipboard.writeText(code);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Clipboard may not be available
+        }
+    }, [code]);
+
+    return (
+        <button
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            aria-label={copied ? 'Copied' : 'Copy code'}
+        >
+            {copied ? (
+                <>
+                    <Check className="h-3 w-3 text-green-500" />
+                    <span>Copied</span>
+                </>
+            ) : (
+                <>
+                    <Copy className="h-3 w-3" />
+                    <span>Copy</span>
+                </>
+            )}
+        </button>
+    );
 }
 
 const components: Partial<Components> = {
@@ -77,7 +114,12 @@ const components: Partial<Components> = {
         </blockquote>
     ),
     code: ({ children, className, ...props }) => {
-        const isInline = !className?.includes('language-');
+        const match = /language-(\w+)/.exec(className ?? '');
+        const isInline = !match;
+        const codeString = typeof children === 'string'
+            ? children.replace(/\n$/, '')
+            : '';
+
         if (isInline) {
             return (
                 <code
@@ -88,20 +130,36 @@ const components: Partial<Components> = {
                 </code>
             );
         }
+
+        const language = match[1] ?? 'text';
+
         return (
-            <code
-                className={cn(
-                    'block overflow-x-auto rounded-lg bg-muted p-4 font-mono text-sm',
-                    className,
-                )}
-                {...props}
-            >
-                {children}
-            </code>
+            <div className="group relative mb-4">
+                <div className="flex items-center justify-between rounded-t-lg bg-muted/80 px-4 py-2">
+                    <span className="text-xs font-medium text-muted-foreground">
+                        {language}
+                    </span>
+                    <CodeCopyButton code={codeString} />
+                </div>
+                <SyntaxHighlighter
+                    style={oneDark}
+                    language={language}
+                    PreTag="div"
+                    customStyle={{
+                        margin: 0,
+                        borderTopLeftRadius: 0,
+                        borderTopRightRadius: 0,
+                        borderBottomLeftRadius: '0.5rem',
+                        borderBottomRightRadius: '0.5rem',
+                    }}
+                >
+                    {codeString}
+                </SyntaxHighlighter>
+            </div>
         );
     },
     pre: ({ children, ...props }) => (
-        <pre className="mb-4 overflow-x-auto rounded-lg bg-muted p-4" {...props}>
+        <pre className="overflow-x-auto [&>div]:!mb-0" {...props}>
             {children}
         </pre>
     ),

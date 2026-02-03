@@ -78,13 +78,18 @@ export function isModelAvailableForTier(
   modelId: string,
   tier: 'basic' | 'pro',
 ): boolean {
+  // Check hardcoded models first
   const model = ALL_MODELS.find((m) => m.id === modelId);
-  if (!model) return false;
-
-  if (model.tier === 'premium' && tier !== 'pro') {
-    return false;
+  if (model) {
+    if (model.tier === 'premium' && tier !== 'pro') {
+      return false;
+    }
+    return true;
   }
 
+  // For dynamic models from OpenRouter (not in hardcoded list),
+  // allow all - tier filtering is handled by the model selector UI
+  // and validated via the database models table
   return true;
 }
 
@@ -97,5 +102,11 @@ export function isBasicModel(modelId: string): boolean {
 }
 
 export function isPremiumModel(modelId: string): boolean {
-  return PREMIUM_MODELS.some((m) => m.id === modelId);
+  // Check hardcoded list first
+  if (PREMIUM_MODELS.some((m) => m.id === modelId)) {
+    return true;
+  }
+  // For dynamic models, default to basic (non-premium) billing
+  // Actual tier is determined by the database models table
+  return false;
 }
