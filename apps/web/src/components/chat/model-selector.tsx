@@ -77,14 +77,7 @@ export function ModelSelector({
         return null;
     }, [value, allModels, featuredModels]);
 
-    // Format display name with provider prefix for consistency
-    const formatModelDisplayName = (model: NonNullable<typeof selectedModel>) => {
-        return `${model.provider}: ${model.name}`;
-    };
-
-    const displayName = selectedModel
-        ? formatModelDisplayName(selectedModel)
-        : 'Loading model...';
+    const displayName = selectedModel?.name;
 
     const handleSelect = (openRouterId: string) => {
         onChange(openRouterId);

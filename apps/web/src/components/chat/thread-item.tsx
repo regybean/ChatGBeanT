@@ -17,21 +17,28 @@ interface ThreadItemProps {
   threadId: string;
   title: string;
   isPinned?: boolean;
+  model?: string;
   onRename: (threadId: string, currentTitle: string) => void;
   onTogglePin: (threadId: string) => void;
   onDelete: (threadId: string) => void;
+  onHover?: (threadId: string | null) => void;
 }
 
 export function ThreadItem({
   threadId,
   title,
   isPinned,
+  model,
   onRename,
   onTogglePin,
   onDelete,
+  onHover,
 }: ThreadItemProps) {
   const pathname = usePathname();
   const isActive = pathname === `/c/${threadId}`;
+  
+  // Build URL with model param for faster loading
+  const href = model ? `/c/${threadId}?model=${encodeURIComponent(model)}` : `/c/${threadId}`;
 
   return (
     <div
@@ -39,9 +46,11 @@ export function ThreadItem({
         'group flex items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent',
         isActive && 'bg-accent',
       )}
+      onMouseEnter={() => onHover?.(threadId)}
+      onMouseLeave={() => onHover?.(null)}
     >
       <Link
-        href={`/c/${threadId}`}
+        href={href}
         className="flex-1 truncate"
       >
         {isPinned && <Pin className="mr-1 inline h-3 w-3 text-muted-foreground" />}

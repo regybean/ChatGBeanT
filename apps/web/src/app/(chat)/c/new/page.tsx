@@ -14,17 +14,13 @@ export default function NewChatPage() {
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const settings = useQuery(api.settings.getSettings);
 
-  // Called when user sends first message - just creates thread
-  // ChatInterface handles sending the actual message
+  // Called when user sends first message - creates thread
   const handleFirstMessage = useCallback(async (_content: string, model: string) => {
     const { threadId } = await createThread({ model });
-    // Set threadId so ChatInterface can start showing/sending messages
-    setActiveThreadId(threadId);
     return threadId;
   }, [createThread]);
 
-  // Redirect to thread page after message is sent successfully
-  // This is triggered by ChatInterface completing the sendMessage
+  // Redirect to thread page - called immediately after thread creation
   const handleMessageSent = useCallback((threadId: string) => {
     router.push(`/c/${threadId}`);
   }, [router]);

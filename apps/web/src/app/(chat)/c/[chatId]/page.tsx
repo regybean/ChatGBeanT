@@ -2,6 +2,7 @@
 
 import { use } from 'react';
 import { useQuery } from 'convex/react';
+import { useSearchParams } from 'next/navigation';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
 
@@ -14,16 +15,16 @@ export default function ChatPage({
 }) {
   // chatId in the URL is actually the threadId from the agent
   const { chatId: threadId } = use(params);
+  const searchParams = useSearchParams();
+  
+  // Get model from URL params (instant) or fall back to query (async)
+  const modelFromUrl = searchParams.get('model');
   const thread = useQuery(api.chat.getThread, { threadId });
+  
+  // Use URL model immediately, then switch to thread model when loaded
+  const initialModel = modelFromUrl ?? thread?.model;
 
-  if (thread === undefined) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
-
+  // Only show error for null (not found), not for undefined (loading)
   if (thread === null) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -37,11 +38,12 @@ export default function ChatPage({
     );
   }
 
+  // Render ChatInterface immediately - it handles its own loading state for messages
   return (
     <ChatInterface
       isNewChat={false}
       threadId={threadId}
-      initialModel={thread.model}
+      initialModel={initialModel}
     />
   );
 }

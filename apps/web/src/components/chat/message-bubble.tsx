@@ -19,14 +19,21 @@ interface MessageBubbleProps {
 export const MessageBubble = memo(function MessageBubble({ message, model, isCancelled }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isStreaming = message.status === 'streaming' && !isCancelled;
+  const isPending = message.status === 'pending';
 
   // Use smooth text for streaming messages - this creates the typewriter effect
   const [visibleText] = useSmoothText(message.text, {
     startStreaming: isStreaming,
   });
 
-  // Show typing indicator when streaming but no content yet
-  const showTypingIndicator = isStreaming && !visibleText;
+  // For non-streaming messages, only render if there's content
+  const hasContent = visibleText && visibleText.length > 0;
+  
+  // Show typing indicator when:
+  // 1. Streaming with no visible content yet, OR
+  // 2. Pending with no content (waiting to start streaming), OR
+  // 3. Message has text but visibleText hasn't caught up yet (prevents flicker)
+  const showTypingIndicator = !hasContent && (isStreaming || isPending || (message.text && message.text.length > 0));
 
   // Thinking timeout: show error if stuck thinking for 30s
   const [thinkingTimedOut, setThinkingTimedOut] = useState(false);
@@ -38,6 +45,14 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
     const timer = setTimeout(() => setThinkingTimedOut(true), 30000);
     return () => clearTimeout(timer);
   }, [showTypingIndicator]);
+
+  // Don't render empty bubble for user messages that have no content
+  // For assistant messages, always render (will show thinking indicator if no content)
+  const shouldRender = isUser ? hasContent : (hasContent || showTypingIndicator || (isCancelled && !visibleText));
+  
+  if (!shouldRender) {
+    return null;
+  }
 
   return (
     <div
@@ -83,26 +98,26 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
               <span>Model may be unavailable. Try again or choose another model.</span>
             </div>
           )}
-          {!showTypingIndicator && isUser && (
+          {!showTypingIndicator && isUser && hasContent && (
             <MarkdownContent
               content={visibleText}
               className="prose-invert"
             />
           )}
-          {!showTypingIndicator && !isUser && (
+          {!showTypingIndicator && !isUser && hasContent && (
             <>
               <MarkdownContent content={visibleText} />
-              {isCancelled && visibleText && (
+              {isCancelled && (
                 <div className="mt-1 text-xs italic text-muted-foreground">[Response cancelled]</div>
               )}
-              {isStreaming && visibleText && !isCancelled && (
+              {isStreaming && !isCancelled && (
                 <span className="ml-1 inline-block h-4 w-2 animate-pulse bg-foreground/50" />
               )}
             </>
           )}
 
           {/* Copy button + model info - visible on hover */}
-          {!showTypingIndicator && visibleText && (
+          {!showTypingIndicator && hasContent && (
             <div
               className={cn(
                 'absolute -bottom-8 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100',

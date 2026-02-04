@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useAction, useMutation, useQuery } from 'convex/react';
+import { useUIMessages } from '@convex-dev/agent/react';
 import { useUser, UserButton } from '@clerk/nextjs';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -21,6 +22,20 @@ import { ThreadGroup } from './thread-group';
 import { ThreadItem } from './thread-item';
 import { RenameDialog } from './rename-dialog';
 
+// Hidden component that maintains an active subscription to prefetch thread data
+// This follows the "prefetch by rendering" pattern - the hook populates the cache
+function ThreadPrefetcher({ threadId }: { threadId: string | null }) {
+  // These hooks keep subscriptions alive, populating the reactive cache
+  // When user clicks the thread, ChatInterface will get cached data instantly
+  useQuery(api.chat.getThread, threadId ? { threadId } : 'skip');
+  useUIMessages(
+    api.chat.listMessages,
+    threadId ? { threadId } : 'skip',
+    { initialNumItems: 100, stream: true }
+  );
+  return null; // Renders nothing - just maintains subscriptions
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -28,6 +43,7 @@ export function Sidebar() {
   const currentUser = useQuery(api.users.getCurrent);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{
     threadId: string;
@@ -91,20 +107,25 @@ export function Sidebar() {
     threadId: string;
     title?: string;
     isPinned?: boolean;
+    model?: string;
   }) => (
     <ThreadItem
       key={thread.threadId}
       threadId={thread.threadId}
       title={thread.title ?? 'New conversation'}
       isPinned={thread.isPinned}
+      model={thread.model}
       onRename={handleRenameClick}
       onTogglePin={handleTogglePin}
       onDelete={handleDelete}
+      onHover={setHoveredThreadId}
     />
   );
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-muted/30">
+      {/* Invisible component that maintains subscription for hovered thread */}
+      <ThreadPrefetcher threadId={hoveredThreadId} />
       <div className="flex items-center justify-between border-b p-4">
         <Link href="/c/new" className="flex items-center gap-2">
           <span className="text-lg font-semibold">ChatGBeanT</span>
