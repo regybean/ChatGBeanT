@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAction, useQuery } from 'convex/react';
 import { useUIMessages } from '@convex-dev/agent/react';
-import { Send, Loader2, Square, Paperclip, User, Bot } from 'lucide-react';
+import { Send, Loader2, Square, Paperclip, User, Bot, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -12,10 +12,21 @@ import { Textarea } from '@chatgbeant/ui/textarea';
 import { ScrollArea } from '@chatgbeant/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@chatgbeant/ui/avatar';
 import { MarkdownContent } from '@chatgbeant/ui/markdown-content';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@chatgbeant/ui/dropdown-menu';
+
+import type { Id } from '@chatgbeant/backend/convex/_generated/dataModel';
 
 import { MessageBubble } from './message-bubble';
 import { ModelSelector } from './model-selector';
-import { FileUploadZone, type UploadedFile, type FileUploadZoneHandle } from './file-upload-zone';
+import type { UploadedFile, FileUploadZoneHandle } from './file-upload-zone';
+import { FileUploadZone } from './file-upload-zone';
+import { DocumentChip } from './document-chip';
+import { useLastUsedModel } from '~/hooks/use-last-used-model';
 
 // Optimistic user message component - shown immediately before server confirms
 function OptimisticUserMessage({ content }: { content: string }) {
@@ -77,25 +88,31 @@ const PENDING_MESSAGE_KEY = 'chatgbeant:pending-message';
 interface ChatInterfaceProps {
     isNewChat: boolean;
     threadId?: string;
-    initialModel?: string;
+    /** Model from thread data (for existing chats). If not provided, uses last used model from localStorage. */
+    threadModel?: string;
     onFirstMessage?: (content: string, model: string) => Promise<string>;
     onMessageSent?: (threadId: string) => void;
 }
 
 const DRAFT_KEY_PREFIX = 'chatgbeant:draft:';
-const DEFAULT_MODEL = 'openai/gpt-4o-mini';
 
 export function ChatInterface({
     isNewChat,
     threadId,
-    initialModel,
+    threadModel,
     onFirstMessage,
     onMessageSent,
 }: ChatInterfaceProps) {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedModel, setSelectedModel] = useState(initialModel ?? DEFAULT_MODEL);
+    // Use localStorage for last used model (instant, no server roundtrip)
+    const [lastUsedModel, setLastUsedModel] = useLastUsedModel();
+    // For existing threads, use thread's model; for new chats, use last used model
+    const [selectedModel, setSelectedModel] = useState(threadModel ?? lastUsedModel);
     const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+    const [attachedDocuments, setAttachedDocuments] = useState<
+        { documentId: Id<'documents'>; title: string }[]
+    >([]);
     // Optimistic message state for immediate feedback
     const [optimisticMessage, setOptimisticMessage] = useState<{ content: string; model: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -104,14 +121,17 @@ export function ChatInterface({
     const cancelledKeysRef = useRef<Set<string>>(new Set());
     const fileUploadRef = useRef<FileUploadZoneHandle>(null);
 
-    // Update model when initialModel loads (e.g. from async query)
+    // Update model only when threadModel loads for existing chats
+    // This handles the case where we navigate to an existing thread
     useEffect(() => {
-        if (initialModel) {
-            setSelectedModel(initialModel);
+        if (threadModel && !isNewChat) {
+            setSelectedModel(threadModel);
         }
-    }, [initialModel]);
+    }, [threadModel, isNewChat]);
 
     const currentUser = useQuery(api.users.getCurrent);
+
+    const documents = useQuery(api.documents.listDocuments) ?? [];
 
     // Check if selected model supports file/image input
     const selectedModelInfo = useQuery(api.openrouter.getModelByOpenRouterId, {
@@ -206,10 +226,15 @@ export function ChatInterface({
 
         const content = input.trim();
         const filesToSend = [...uploadedFiles];
+        const docsToSend = [...attachedDocuments];
         setInput('');
         setUploadedFiles([]);
+        setAttachedDocuments([]);
         localStorage.removeItem(draftKey);
         setIsLoading(true);
+
+        // Save model to localStorage immediately for instant access on next chat
+        setLastUsedModel(selectedModel);
 
         // Only show optimistic message for existing chats (not new chats that will redirect)
         if (!isNewChat) {
@@ -246,6 +271,9 @@ export function ChatInterface({
                 model: selectedModel,
                 ...(filesToSend.length > 0 && {
                     fileIds: filesToSend.map((f) => f.storageId),
+                }),
+                ...(docsToSend.length > 0 && {
+                    documentIds: docsToSend.map((d) => d.documentId),
                 }),
             });
 
@@ -367,7 +395,58 @@ export function ChatInterface({
                         >
                             <Paperclip className="h-4 w-4" />
                         </Button>
+                        {documents.length > 0 && (
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="icon"
+                                        className="shrink-0"
+                                        disabled={isLoading}
+                                        title="Attach document"
+                                    >
+                                        <FileText className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="w-56">
+                                    {documents.map((doc) => (
+                                        <DropdownMenuItem
+                                            key={doc._id}
+                                            disabled={attachedDocuments.some(
+                                                (d) => d.documentId === doc._id,
+                                            )}
+                                            onClick={() =>
+                                                setAttachedDocuments((prev) => [
+                                                    ...prev,
+                                                    { documentId: doc._id, title: doc.title },
+                                                ])
+                                            }
+                                        >
+                                            <FileText className="mr-2 h-4 w-4" />
+                                            <span className="truncate">{doc.title}</span>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        )}
                     </div>
+                    {attachedDocuments.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                            {attachedDocuments.map((doc) => (
+                                <DocumentChip
+                                    key={doc.documentId}
+                                    documentId={doc.documentId}
+                                    title={doc.title}
+                                    onRemove={(id) =>
+                                        setAttachedDocuments((prev) =>
+                                            prev.filter((d) => d.documentId !== id),
+                                        )
+                                    }
+                                />
+                            ))}
+                        </div>
+                    )}
                     {supportsFiles ? (
                         <FileUploadZone
                             ref={fileUploadRef}

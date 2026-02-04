@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from 'convex/react';
 import { ChevronsUpDown, Check, Search, Clock } from 'lucide-react';
 
@@ -39,20 +39,24 @@ export function ModelSelector({
     );
     const recentModelIds = useQuery(api.settings.getRecentModels);
 
-    // Cache last valid search results to prevent flicker while loading
-    const lastSearchResultsRef = useRef<NonNullable<typeof allModels>>([]);
-    if (search && allModels !== undefined) {
-        lastSearchResultsRef.current = allModels;
+    // Track last valid search results to prevent flicker while loading new search
+    const [cachedSearchResults, setCachedSearchResults] = useState<NonNullable<typeof allModels>>([]);
+    const [lastCachedSearch, setLastCachedSearch] = useState('');
+
+    // Update cache when we get new valid results for a search
+    if (search && allModels !== undefined && search !== lastCachedSearch) {
+        setCachedSearchResults(allModels);
+        setLastCachedSearch(search);
     }
 
     // Use featured models when no search, all models when searching
     // When searching and loading, show cached previous results to avoid flicker
     const displayModels = useMemo(() => {
         if (search) {
-            return allModels ?? lastSearchResultsRef.current;
+            return allModels ?? cachedSearchResults;
         }
         return featuredModels ?? [];
-    }, [search, allModels, featuredModels]);
+    }, [search, allModels, featuredModels, cachedSearchResults]);
 
     // Show all models; premium ones are grayed out for basic users
     const filteredModels = displayModels;
@@ -175,7 +179,7 @@ export function ModelSelector({
                                     <Clock className="h-3 w-3" />
                                     Recently Used
                                 </div>
-                                {recentModels.map(renderModelItem)}
+                                {recentModels.map((m) => renderModelItem(m))}
                                 <div className="my-1 border-t" />
                             </>
                         )}
@@ -189,7 +193,7 @@ export function ModelSelector({
                                 No models found
                             </div>
                         ) : (
-                            filteredModels.map(renderModelItem)
+                            filteredModels.map((m) => renderModelItem(m))
                         )}
                         {!search && (
                             <div className="border-t px-2 py-2">

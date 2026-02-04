@@ -10,30 +10,40 @@ import {
   MessageSquarePlus,
   Settings,
   LayoutDashboard,
+  FolderPlus,
 } from 'lucide-react';
+import { DndContext, type DragEndEvent } from '@dnd-kit/core';
+import type { Id } from '@chatgbeant/backend/convex/_generated/dataModel';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
 import { Button } from '@chatgbeant/ui/button';
+import {
+  Sidebar as ShadcnSidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarRail,
+} from '@chatgbeant/ui/sidebar';
 import { ScrollArea } from '@chatgbeant/ui/scroll-area';
 
 import { TokenUsage } from './token-usage';
 import { ThreadSearch } from './thread-search';
 import { ThreadGroup } from './thread-group';
 import { ThreadItem } from './thread-item';
+import { GroupHeader } from './group-header';
 import { RenameDialog } from './rename-dialog';
+import { DocumentsDropdown } from './documents-dropdown';
+import { DocumentsModal } from './documents-modal';
 
 // Hidden component that maintains an active subscription to prefetch thread data
-// This follows the "prefetch by rendering" pattern - the hook populates the cache
 function ThreadPrefetcher({ threadId }: { threadId: string | null }) {
-  // These hooks keep subscriptions alive, populating the reactive cache
-  // When user clicks the thread, ChatInterface will get cached data instantly
   useQuery(api.chat.getThread, threadId ? { threadId } : 'skip');
   useUIMessages(
     api.chat.listMessages,
     threadId ? { threadId } : 'skip',
     { initialNumItems: 100, stream: true }
   );
-  return null; // Renders nothing - just maintains subscriptions
+  return null;
 }
 
 export function Sidebar() {
@@ -45,12 +55,13 @@ export function Sidebar() {
   const [searchTerm, setSearchTerm] = useState('');
   const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState<{
-    threadId: string;
+    threadId?: string;
+    groupId?: Id<'threadGroups'>;
     title: string;
   } | null>(null);
 
-  // Use grouped threads when not searching, search results when searching
   const groupedThreads = useQuery(
     api.chat.listThreadsGrouped,
     searchTerm ? 'skip' : {},
@@ -59,10 +70,14 @@ export function Sidebar() {
     api.chat.searchThreads,
     searchTerm ? { searchTerm } : 'skip',
   );
+  const groups = useQuery(api.chat.listGroups) ?? [];
 
   const deleteThread = useAction(api.chat.deleteThread);
   const renameThread = useMutation(api.chat.renameThread);
-  const togglePin = useMutation(api.chat.togglePinThread);
+  const createGroup = useMutation(api.chat.createGroup);
+  const renameGroup = useMutation(api.chat.renameGroup);
+  const deleteGroup = useMutation(api.chat.deleteGroup);
+  const moveThreadToGroup = useMutation(api.chat.moveThreadToGroup);
 
   const isAdmin = currentUser?.role === 'admin';
 
@@ -84,53 +99,95 @@ export function Sidebar() {
     [],
   );
 
+  const handleGroupRenameClick = useCallback(
+    (groupId: Id<'threadGroups'>, currentName: string) => {
+      setRenameTarget({ groupId, title: currentName });
+      setRenameDialogOpen(true);
+    },
+    [],
+  );
+
   const handleRename = useCallback(
     async (newTitle: string) => {
-      if (renameTarget) {
+      if (renameTarget?.threadId) {
         await renameThread({
           threadId: renameTarget.threadId,
           title: newTitle,
         });
+      } else if (renameTarget?.groupId) {
+        await renameGroup({
+          groupId: renameTarget.groupId,
+          name: newTitle,
+        });
       }
     },
-    [renameTarget, renameThread],
+    [renameTarget, renameThread, renameGroup],
   );
 
-  const handleTogglePin = useCallback(
-    async (threadId: string) => {
-      await togglePin({ threadId });
+  const handleMoveToGroup = useCallback(
+    async (threadId: string, groupId?: Id<'threadGroups'>) => {
+      await moveThreadToGroup({ threadId, groupId });
     },
-    [togglePin],
+    [moveThreadToGroup],
   );
+
+  const handleDeleteGroup = useCallback(
+    async (groupId: Id<'threadGroups'>) => {
+      await deleteGroup({ groupId });
+    },
+    [deleteGroup],
+  );
+
+  const handleCreateGroup = useCallback(async () => {
+    await createGroup({ name: 'New Group' });
+  }, [createGroup]);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over) return;
+
+      const threadId = (active.data.current as { threadId?: string })?.threadId;
+      const targetGroupId = (over.data.current as { groupId?: Id<'threadGroups'> })?.groupId;
+
+      if (threadId && targetGroupId) {
+        void moveThreadToGroup({ threadId, groupId: targetGroupId });
+      }
+    },
+    [moveThreadToGroup],
+  );
+
+  const groupList = groups.map((g) => ({ _id: g._id, name: g.name }));
 
   const renderThread = (thread: {
     threadId: string;
     title?: string;
     isPinned?: boolean;
     model?: string;
+    groupId?: Id<'threadGroups'>;
   }) => (
     <ThreadItem
       key={thread.threadId}
       threadId={thread.threadId}
       title={thread.title ?? 'New conversation'}
-      isPinned={thread.isPinned}
-      model={thread.model}
+      groupId={thread.groupId}
+      groups={groupList}
       onRename={handleRenameClick}
-      onTogglePin={handleTogglePin}
       onDelete={handleDelete}
+      onMoveToGroup={handleMoveToGroup}
       onHover={setHoveredThreadId}
     />
   );
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-muted/30">
-      {/* Invisible component that maintains subscription for hovered thread */}
+    <ShadcnSidebar>
       <ThreadPrefetcher threadId={hoveredThreadId} />
-      <div className="flex items-center justify-between border-b p-4">
+
+      <SidebarHeader className="border-b p-4">
         <Link href="/c/new" className="flex items-center gap-2">
           <span className="text-lg font-semibold">ChatGBeanT</span>
         </Link>
-      </div>
+      </SidebarHeader>
 
       <div className="space-y-2 p-2">
         <Button asChild variant="outline" className="w-full justify-start">
@@ -140,57 +197,88 @@ export function Sidebar() {
           </Link>
         </Button>
         <ThreadSearch value={searchTerm} onChange={setSearchTerm} />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start text-xs text-muted-foreground"
+          onClick={handleCreateGroup}
+        >
+          <FolderPlus className="mr-2 h-3 w-3" />
+          Create Group
+        </Button>
       </div>
 
-      <ScrollArea className="flex-1 px-2">
-        <div className="space-y-2 py-2">
-          {searchTerm && searchResults && searchResults.length > 0 && (
-            <ThreadGroup label={`Results (${searchResults.length})`}>
-              {searchResults.map((t) => renderThread(t))}
-            </ThreadGroup>
-          )}
-          {searchTerm && searchResults?.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">
-              No threads found
-            </p>
-          )}
-          {!searchTerm && (
-            <>
-              {groupedThreads?.pinned && groupedThreads.pinned.length > 0 && (
-                <ThreadGroup label="Pinned">
-                  {groupedThreads.pinned.map((t) => renderThread(t))}
+      <SidebarContent>
+        <DndContext onDragEnd={handleDragEnd}>
+          <ScrollArea className="flex-1 px-2">
+            <div className="space-y-2 py-2">
+              {searchTerm && searchResults && searchResults.length > 0 && (
+                <ThreadGroup label={`Results (${searchResults.length})`}>
+                  {searchResults.map((t) => renderThread(t))}
                 </ThreadGroup>
               )}
-              {groupedThreads?.today && groupedThreads.today.length > 0 && (
-                <ThreadGroup label="Today">
-                  {groupedThreads.today.map((t) => renderThread(t))}
-                </ThreadGroup>
+              {searchTerm && searchResults?.length === 0 && (
+                <p className="px-3 py-2 text-xs text-muted-foreground">
+                  No threads found
+                </p>
               )}
-              {groupedThreads?.last7Days &&
-                groupedThreads.last7Days.length > 0 && (
-                  <ThreadGroup label="Last 7 Days">
-                    {groupedThreads.last7Days.map((t) => renderThread(t))}
-                  </ThreadGroup>
-                )}
-              {groupedThreads?.last30Days &&
-                groupedThreads.last30Days.length > 0 && (
-                  <ThreadGroup label="Last 30 Days">
-                    {groupedThreads.last30Days.map((t) => renderThread(t))}
-                  </ThreadGroup>
-                )}
-              {groupedThreads?.older && groupedThreads.older.length > 0 && (
-                <ThreadGroup label="Older" defaultOpen={false}>
-                  {groupedThreads.older.map((t) => renderThread(t))}
-                </ThreadGroup>
+              {!searchTerm && (
+                <>
+                  {/* User-created groups */}
+                  {groupedThreads?.groups?.map((g) => (
+                    <GroupHeader
+                      key={g._id}
+                      groupId={g._id}
+                      name={g.name}
+                      onRename={handleGroupRenameClick}
+                      onDelete={handleDeleteGroup}
+                    >
+                      {g.threads.map((t) => renderThread(t))}
+                    </GroupHeader>
+                  ))}
+
+                  {/* Date-based groups */}
+                  {groupedThreads?.pinned && groupedThreads.pinned.length > 0 && (
+                    <ThreadGroup label="Pinned">
+                      {groupedThreads.pinned.map((t) => renderThread(t))}
+                    </ThreadGroup>
+                  )}
+                  {groupedThreads?.today && groupedThreads.today.length > 0 && (
+                    <ThreadGroup label="Today">
+                      {groupedThreads.today.map((t) => renderThread(t))}
+                    </ThreadGroup>
+                  )}
+                  {groupedThreads?.last7Days &&
+                    groupedThreads.last7Days.length > 0 && (
+                      <ThreadGroup label="Last 7 Days">
+                        {groupedThreads.last7Days.map((t) => renderThread(t))}
+                      </ThreadGroup>
+                    )}
+                  {groupedThreads?.last30Days &&
+                    groupedThreads.last30Days.length > 0 && (
+                      <ThreadGroup label="Last 30 Days">
+                        {groupedThreads.last30Days.map((t) => renderThread(t))}
+                      </ThreadGroup>
+                    )}
+                  {groupedThreads?.older && groupedThreads.older.length > 0 && (
+                    <ThreadGroup label="Older" defaultOpen={false}>
+                      {groupedThreads.older.map((t) => renderThread(t))}
+                    </ThreadGroup>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </div>
-      </ScrollArea>
+            </div>
+          </ScrollArea>
+        </DndContext>
+      </SidebarContent>
+
+      <div className="border-t px-2 py-2">
+        <DocumentsDropdown onOpenModal={() => setDocumentsModalOpen(true)} />
+      </div>
 
       <TokenUsage />
 
-      <div className="border-t p-2">
+      <SidebarFooter className="border-t p-2">
         {isAdmin && (
           <Button
             asChild
@@ -225,7 +313,9 @@ export function Sidebar() {
             </Link>
           </Button>
         </div>
-      </div>
+      </SidebarFooter>
+
+      <SidebarRail />
 
       <RenameDialog
         open={renameDialogOpen}
@@ -233,6 +323,11 @@ export function Sidebar() {
         currentTitle={renameTarget?.title ?? ''}
         onRename={handleRename}
       />
-    </div>
+
+      <DocumentsModal
+        open={documentsModalOpen}
+        onClose={() => setDocumentsModalOpen(false)}
+      />
+    </ShadcnSidebar>
   );
 }

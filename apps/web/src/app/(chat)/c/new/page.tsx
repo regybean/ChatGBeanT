@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation, useQuery } from 'convex/react';
+import { useMutation } from 'convex/react';
 import { useRouter } from 'next/navigation';
 import { useState, useCallback } from 'react';
 
@@ -12,7 +12,6 @@ export default function NewChatPage() {
   const router = useRouter();
   const createThread = useMutation(api.chat.createThread);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const settings = useQuery(api.settings.getSettings);
 
   // Called when user sends first message - creates thread
   const handleFirstMessage = useCallback(async (_content: string, model: string) => {
@@ -25,13 +24,11 @@ export default function NewChatPage() {
     router.push(`/c/${threadId}`);
   }, [router]);
 
-  const lastUsedModel = settings && 'lastUsedModel' in settings ? settings.lastUsedModel : undefined;
-
+  // No need to fetch settings - ChatInterface uses localStorage for last used model
   return (
     <ChatInterface
       isNewChat={!activeThreadId}
       threadId={activeThreadId ?? undefined}
-      initialModel={lastUsedModel ?? undefined}
       onFirstMessage={handleFirstMessage}
       onMessageSent={handleMessageSent}
     />

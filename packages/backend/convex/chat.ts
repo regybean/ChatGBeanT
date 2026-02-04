@@ -191,6 +191,7 @@ export const sendMessage = action({
         content: v.string(),
         model: v.string(),
         fileIds: v.optional(v.array(v.string())),
+        documentIds: v.optional(v.array(v.id('documents'))),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -249,10 +250,46 @@ export const sendMessage = action({
         // Create agent with the requested model
         const agent = createAgentWithModel(args.model);
 
+        // Fetch attached document content and prepend to message
+        let messageContent = args.content;
+        if (args.documentIds && args.documentIds.length > 0) {
+            const docContents: string[] = [];
+            for (const docId of args.documentIds) {
+                const doc = await ctx.runQuery(internal.documents.internalGetDocument, {
+                    documentId: docId,
+                });
+                if (doc?.content) {
+                    // Parse BlockNote JSON to extract plain text
+                    try {
+                        const blocks = JSON.parse(doc.content) as Array<{
+                            content?: Array<{ text?: string }>;
+                        }>;
+                        const text = blocks
+                            .map((b) =>
+                                (b.content ?? [])
+                                    .map((c) => c.text ?? '')
+                                    .join(''),
+                            )
+                            .filter(Boolean)
+                            .join('\n');
+                        if (text) {
+                            docContents.push(`[Document: ${doc.title}]\n${text}`);
+                        }
+                    } catch {
+                        // Fallback: include raw content
+                        docContents.push(`[Document: ${doc.title}]\n${doc.content}`);
+                    }
+                }
+            }
+            if (docContents.length > 0) {
+                messageContent = `${docContents.join('\n\n')}\n\n---\n\n${args.content}`;
+            }
+        }
+
         // Build message content - support file attachments
         if (args.fileIds && args.fileIds.length > 0) {
             const parts: Array<{ type: string; text?: string; image?: string; mimeType?: string }> = [];
-            parts.push({ type: 'text', text: args.content });
+            parts.push({ type: 'text', text: messageContent });
 
             for (const fileId of args.fileIds) {
                 const url = await ctx.storage.getUrl(fileId as never);
@@ -277,7 +314,7 @@ export const sendMessage = action({
                 ctx,
                 { threadId: args.threadId },
                 {
-                    prompt: args.content,
+                    prompt: messageContent,
                 },
                 {
                     // Enable delta streaming so messages update in real-time
@@ -544,7 +581,7 @@ export const listThreadsGrouped = query({
     handler: async (ctx) => {
         const identity = await ctx.auth.getUserIdentity();
         if (!identity) {
-            return { pinned: [], today: [], last7Days: [], last30Days: [], older: [] };
+            return { groups: [], pinned: [], today: [], last7Days: [], last30Days: [], older: [] };
         }
 
         const user = await ctx.db
@@ -553,13 +590,19 @@ export const listThreadsGrouped = query({
             .first();
 
         if (!user) {
-            return { pinned: [], today: [], last7Days: [], last30Days: [], older: [] };
+            return { groups: [], pinned: [], today: [], last7Days: [], last30Days: [], older: [] };
         }
 
         const threads = await ctx.db
             .query('userThreads')
             .withIndex('by_user_updated', (q) => q.eq('userId', user._id))
             .order('desc')
+            .collect();
+
+        // Fetch user's thread groups
+        const userGroups = await ctx.db
+            .query('threadGroups')
+            .withIndex('by_user_order', (q) => q.eq('userId', user._id))
             .collect();
 
         const now = Date.now();
@@ -575,8 +618,16 @@ export const listThreadsGrouped = query({
         const last30Days: typeof threads = [];
         const older: typeof threads = [];
 
+        // Build group maps
+        const groupThreadsMap = new Map<string, typeof threads>();
+        for (const g of userGroups) {
+            groupThreadsMap.set(g._id, []);
+        }
+
         for (const thread of threads) {
-            if (thread.isPinned) {
+            if (thread.groupId && groupThreadsMap.has(thread.groupId)) {
+                groupThreadsMap.get(thread.groupId)!.push(thread);
+            } else if (thread.isPinned) {
                 pinned.push(thread);
             } else if (thread.updatedAt >= todayMs) {
                 today.push(thread);
@@ -592,7 +643,13 @@ export const listThreadsGrouped = query({
         // Sort pinned by pinnedAt descending
         pinned.sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
 
-        return { pinned, today, last7Days, last30Days, older };
+        const groups = userGroups.map((g) => ({
+            _id: g._id,
+            name: g.name,
+            threads: groupThreadsMap.get(g._id) ?? [],
+        }));
+
+        return { groups, pinned, today, last7Days, last30Days, older };
     },
 });
 
@@ -668,5 +725,204 @@ export const updateThreadModel = mutation({
             model: args.model,
             updatedAt: Date.now(),
         });
+    },
+});
+
+// ─── Group CRUD ─────────────────────────────────────────────
+
+/**
+ * Create a new thread group
+ */
+export const createGroup = mutation({
+    args: {
+        name: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        // Determine order: one more than the current max
+        const existing = await ctx.db
+            .query('threadGroups')
+            .withIndex('by_user_order', (q) => q.eq('userId', user._id))
+            .collect();
+
+        const maxOrder = existing.reduce((max, g) => Math.max(max, g.order), -1);
+
+        const now = Date.now();
+        return await ctx.db.insert('threadGroups', {
+            userId: user._id,
+            name: args.name.trim(),
+            order: maxOrder + 1,
+            createdAt: now,
+            updatedAt: now,
+        });
+    },
+});
+
+/**
+ * Rename a thread group
+ */
+export const renameGroup = mutation({
+    args: {
+        groupId: v.id('threadGroups'),
+        name: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const group = await ctx.db.get(args.groupId);
+        if (!group || group.userId !== user._id) {
+            throw new Error('Group not found');
+        }
+
+        await ctx.db.patch(args.groupId, {
+            name: args.name.trim(),
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/**
+ * Delete a thread group (ungroups all threads first)
+ */
+export const deleteGroup = mutation({
+    args: {
+        groupId: v.id('threadGroups'),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const group = await ctx.db.get(args.groupId);
+        if (!group || group.userId !== user._id) {
+            throw new Error('Group not found');
+        }
+
+        // Ungroup all threads in this group
+        const threadsInGroup = await ctx.db
+            .query('userThreads')
+            .withIndex('by_group', (q) => q.eq('groupId', args.groupId))
+            .collect();
+
+        for (const thread of threadsInGroup) {
+            await ctx.db.patch(thread._id, {
+                groupId: undefined,
+                updatedAt: Date.now(),
+            });
+        }
+
+        await ctx.db.delete(args.groupId);
+    },
+});
+
+/**
+ * Move a thread to a group (or remove from group)
+ */
+export const moveThreadToGroup = mutation({
+    args: {
+        threadId: v.string(),
+        groupId: v.optional(v.id('threadGroups')),
+    },
+    handler: async (ctx, args) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            throw new Error('Not authenticated');
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        const userThread = await ctx.db
+            .query('userThreads')
+            .withIndex('by_thread_id', (q) => q.eq('threadId', args.threadId))
+            .first();
+
+        if (!userThread || userThread.userId !== user._id) {
+            throw new Error('Thread not found');
+        }
+
+        // Verify group ownership if groupId provided
+        if (args.groupId) {
+            const group = await ctx.db.get(args.groupId);
+            if (!group || group.userId !== user._id) {
+                throw new Error('Group not found');
+            }
+        }
+
+        // Clear legacy pin fields when grouping
+        await ctx.db.patch(userThread._id, {
+            groupId: args.groupId,
+            isPinned: args.groupId ? undefined : userThread.isPinned,
+            pinnedAt: args.groupId ? undefined : userThread.pinnedAt,
+            updatedAt: Date.now(),
+        });
+    },
+});
+
+/**
+ * List thread groups for current user
+ */
+export const listGroups = query({
+    args: {},
+    handler: async (ctx) => {
+        const identity = await ctx.auth.getUserIdentity();
+        if (!identity) {
+            return [];
+        }
+
+        const user = await ctx.db
+            .query('users')
+            .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+            .first();
+
+        if (!user) {
+            return [];
+        }
+
+        return await ctx.db
+            .query('threadGroups')
+            .withIndex('by_user_order', (q) => q.eq('userId', user._id))
+            .collect();
     },
 });

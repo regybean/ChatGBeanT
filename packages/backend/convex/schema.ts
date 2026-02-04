@@ -16,6 +16,16 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index('by_clerk_id', ['clerkId']),
 
+  threadGroups: defineTable({
+    userId: v.id('users'),
+    name: v.string(),
+    order: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user_order', ['userId', 'order'])
+    .index('by_user', ['userId']),
+
   userThreads: defineTable({
     userId: v.id('users'),
     threadId: v.string(),
@@ -23,12 +33,14 @@ export default defineSchema({
     model: v.string(),
     isPinned: v.optional(v.boolean()),
     pinnedAt: v.optional(v.number()),
+    groupId: v.optional(v.id('threadGroups')),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_user_updated', ['userId', 'updatedAt'])
     .index('by_thread_id', ['threadId'])
-    .index('by_user_pinned', ['userId', 'isPinned']),
+    .index('by_user_pinned', ['userId', 'isPinned'])
+    .index('by_group', ['groupId']),
 
   models: defineTable({
     openRouterId: v.string(),
@@ -55,4 +67,14 @@ export default defineSchema({
     recentModels: v.optional(v.array(v.string())),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
+
+  documents: defineTable({
+    userId: v.id('users'),
+    title: v.string(),
+    content: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_user_updated', ['userId', 'updatedAt'])
+    .index('by_user', ['userId']),
 });
