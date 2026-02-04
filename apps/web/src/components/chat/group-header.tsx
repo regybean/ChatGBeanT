@@ -20,6 +20,8 @@ interface GroupHeaderProps {
     children: React.ReactNode;
     onRename: (groupId: Id<'threadGroups'>, currentName: string) => void;
     onDelete: (groupId: Id<'threadGroups'>) => void;
+    /** Whether a thread is currently being dragged (show drop zone indicator) */
+    isDraggingThread?: boolean;
 }
 
 export function GroupHeader({
@@ -28,6 +30,7 @@ export function GroupHeader({
     children,
     onRename,
     onDelete,
+    isDraggingThread = false,
 }: GroupHeaderProps) {
     const [isOpen, setIsOpen] = useState(true);
 
@@ -41,8 +44,11 @@ export function GroupHeader({
             ref={setNodeRef}
             className={cn(
                 'space-y-0.5 rounded-md transition-all duration-200 border-2 border-transparent',
-                isOver && 'bg-accent/40 border-dashed border-primary/60 ring-2 ring-primary/20',
-                !isOver && 'hover:border-dashed hover:border-muted-foreground/30'
+                // When thread is over this group: purple dashed border
+                isOver && 'bg-primary/10 border-dashed border-primary',
+                // When dragging but not over this group: grey dashed border
+                !isOver && isDraggingThread && 'border-dashed border-muted-foreground/50'
+                // No hover effect when not dragging
             )}
         >
             <div className="group flex w-full items-center gap-1 px-2 py-1.5">

@@ -42,18 +42,38 @@ export function ModelSelector({
     // Track last valid search results to prevent flicker while loading new search
     const [cachedSearchResults, setCachedSearchResults] = useState<NonNullable<typeof allModels>>([]);
     const [lastCachedSearch, setLastCachedSearch] = useState('');
+    const [isSearching, setIsSearching] = useState(false);
 
     // Update cache when we get new valid results for a search
-    if (search && allModels !== undefined && search !== lastCachedSearch) {
+    if (search && allModels !== undefined && allModels.length > 0 && search !== lastCachedSearch) {
         setCachedSearchResults(allModels);
         setLastCachedSearch(search);
+        setIsSearching(false);
+    }
+
+    // Track when search changes to show loading state
+    if (search && search !== lastCachedSearch && !isSearching) {
+        setIsSearching(true);
     }
 
     // Use featured models when no search, all models when searching
     // When searching and loading, show cached previous results to avoid flicker
     const displayModels = useMemo(() => {
         if (search) {
-            return allModels ?? cachedSearchResults;
+            // If we have results for this search, use them
+            if (allModels !== undefined && allModels.length > 0) {
+                return allModels;
+            }
+            // If loading or no results yet, show cached results from previous search
+            if (cachedSearchResults.length > 0) {
+                return cachedSearchResults;
+            }
+            // If no cache and we have results (even empty), show them
+            if (allModels !== undefined) {
+                return allModels;
+            }
+            // Still loading, show featured as fallback
+            return featuredModels ?? [];
         }
         return featuredModels ?? [];
     }, [search, allModels, featuredModels, cachedSearchResults]);
@@ -188,7 +208,7 @@ export function ModelSelector({
                                 Featured Models
                             </div>
                         )}
-                        {filteredModels.length === 0 ? (
+                        {filteredModels.length === 0 && !isSearching ? (
                             <div className="py-6 text-center text-sm text-muted-foreground">
                                 No models found
                             </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useState, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { MoreHorizontal, Pencil, Trash2, FolderInput, FolderMinus, GripVertical } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
@@ -101,26 +101,37 @@ export function ThreadItem({
         router.push(href);
     };
 
+    const [isHovered, setIsHovered] = useState(false);
+
     return (
         <div
             ref={setNodeRef}
             style={style}
             className={cn(
-                'group flex items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent',
+                'flex items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent',
                 isActive && 'bg-accent',
                 isDragging && 'opacity-50 shadow-lg',
             )}
-            onMouseEnter={() => onHover?.(threadId)}
-            onMouseLeave={() => onHover?.(null)}
+            onMouseEnter={() => {
+                setIsHovered(true);
+                onHover?.(threadId);
+            }}
+            onMouseLeave={() => {
+                setIsHovered(false);
+                onHover?.(null);
+            }}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
         >
-            {/* Drag handle */}
+            {/* Drag handle - only visible when this specific thread is hovered */}
             <div
                 {...listeners}
                 {...attributes}
-                className="shrink-0 cursor-grab opacity-0 group-hover:opacity-50 hover:opacity-100 touch-none"
+                className={cn(
+                    'shrink-0 cursor-grab touch-none transition-opacity',
+                    isHovered ? 'opacity-50 hover:opacity-100' : 'opacity-0'
+                )}
                 title="Drag to reorder"
             >
                 <GripVertical className="h-4 w-4" />
@@ -136,7 +147,10 @@ export function ThreadItem({
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
+                        className={cn(
+                            'h-6 w-6 shrink-0 transition-opacity',
+                            isHovered ? 'opacity-100' : 'opacity-0'
+                        )}
                     >
                         <MoreHorizontal className="h-4 w-4" />
                     </Button>

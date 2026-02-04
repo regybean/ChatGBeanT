@@ -34,11 +34,6 @@ export function DocumentsDropdown({ onOpenModal }: DocumentsDropdownProps) {
                 <Button variant="ghost" className="w-full justify-start text-sm">
                     <FileText className="mr-2 h-4 w-4" />
                     Documents
-                    {documents.length > 0 && (
-                        <span className="ml-auto text-xs text-muted-foreground">
-                            {documents.length}
-                        </span>
-                    )}
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="right" sideOffset={8} className="w-56">
