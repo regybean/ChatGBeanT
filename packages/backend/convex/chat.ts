@@ -37,8 +37,25 @@ export const createThread = mutation({
             .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
             .first();
 
+        let userId;
         if (!user) {
-            throw new Error('User not found. Please sign in again.');
+            // Create user if not found (first time user)
+            const now = Date.now();
+            userId = await ctx.db.insert('users', {
+                clerkId: identity.subject,
+                email: identity.email ?? '',
+                name: identity.name,
+                imageUrl: identity.pictureUrl,
+                tier: 'basic',
+                role: 'user',
+                basicTokensUsed: 0,
+                premiumTokensUsed: 0,
+                lastTokenReset: now,
+                createdAt: now,
+                updatedAt: now,
+            });
+        } else {
+            userId = user._id;
         }
 
         const model = args.model ?? BASIC_MODELS[0]!.id;
@@ -46,13 +63,13 @@ export const createThread = mutation({
         // Create agent thread
         const { threadId } = await chatAgent.createThread(ctx, {});
 
-        const now = Date.now();
+        const nowTs = Date.now();
         const userThreadId = await ctx.db.insert('userThreads', {
-            userId: user._id,
+            userId: userId,
             threadId,
             model,
-            createdAt: now,
-            updatedAt: now,
+            createdAt: nowTs,
+            updatedAt: nowTs,
         });
 
         return { userThreadId, threadId };

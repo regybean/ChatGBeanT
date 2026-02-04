@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAction, useQuery } from 'convex/react';
 import { useUIMessages } from '@convex-dev/agent/react';
-import { Send, Loader2, Square } from 'lucide-react';
+import { Send, Loader2, Square, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -13,7 +13,7 @@ import { ScrollArea } from '@chatgbeant/ui/scroll-area';
 
 import { MessageBubble } from './message-bubble';
 import { ModelSelector } from './model-selector';
-import { FileUploadZone, type UploadedFile } from './file-upload-zone';
+import { FileUploadZone, type UploadedFile, type FileUploadZoneHandle } from './file-upload-zone';
 
 interface ChatInterfaceProps {
   isNewChat: boolean;
@@ -39,6 +39,9 @@ export function ChatInterface({
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevMessageCountRef = useRef(0);
+  const cancelledKeysRef = useRef<Set<string>>(new Set());
+  const fileUploadRef = useRef<FileUploadZoneHandle>(null);
 
   // Update model when initialModel loads (e.g. from async query)
   useEffect(() => {
@@ -89,11 +92,16 @@ export function ChatInterface({
     return () => clearTimeout(timer);
   }, [input, draftKey]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom only when new messages arrive or user is near bottom
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const el = scrollRef.current;
+    if (!el) return;
+    const messageCountChanged = messages.length !== prevMessageCountRef.current;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+    if (messageCountChanged || isNearBottom) {
+      el.scrollTop = el.scrollHeight;
     }
+    prevMessageCountRef.current = messages.length;
   }, [messages]);
 
   const handleSubmit = async (e: { preventDefault: () => void }) => {
@@ -132,9 +140,16 @@ export function ChatInterface({
         onMessageSent(targetThreadId);
       }
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : 'Failed to send message',
-      );
+      const msg = error instanceof Error ? error.message : 'Failed to send message';
+      if (msg.includes('Rate limit')) {
+        toast.error('Rate limited — please wait a moment and try again.');
+      } else if (msg.includes('token limit') || msg.includes('Token limit')) {
+        toast.error('Token limit reached. Upgrade to Pro for more tokens.');
+      } else if (msg.includes('not available') || msg.includes('Model not')) {
+        toast.error('This model is currently unavailable. Please choose another.');
+      } else {
+        toast.error(msg);
+      }
       // Restore input on error
       setInput(content);
     } finally {
@@ -155,6 +170,12 @@ export function ChatInterface({
   const isAnyStreaming = messages.some((m) => m.status === 'streaming');
 
   const handleStop = () => {
+    // Soft cancel: mark all currently streaming messages as cancelled
+    messages.forEach((m) => {
+      if (m.status === 'streaming') {
+        cancelledKeysRef.current.add(m.key);
+      }
+    });
     setIsLoading(false);
   };
 
@@ -168,6 +189,7 @@ export function ChatInterface({
                 key={message.key}
                 message={message}
                 model={message.role === 'assistant' ? selectedModel : undefined}
+                isCancelled={cancelledKeysRef.current.has(message.key)}
               />
             ))}
           </div>
@@ -190,12 +212,26 @@ export function ChatInterface({
               onChange={setSelectedModel}
               userTier={currentUser?.tier ?? 'basic'}
             />
+            {supportsFiles && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                disabled={isLoading}
+                onClick={() => fileUploadRef.current?.openFilePicker()}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           {supportsFiles ? (
             <FileUploadZone
+              ref={fileUploadRef}
               files={uploadedFiles}
               onFilesChange={setUploadedFiles}
               disabled={isLoading}
+              showTriggerButton={false}
             >
               <Textarea
                 ref={textareaRef}
@@ -203,7 +239,7 @@ export function ChatInterface({
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Type your message..."
-                className="min-h-[100px] resize-none pl-12 pr-12"
+                className="min-h-[100px] resize-none pr-12"
                 disabled={isLoading}
               />
               {isAnyStreaming ? (

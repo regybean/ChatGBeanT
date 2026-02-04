@@ -26,5 +26,9 @@
     "engines": {
         "node": ">=20.19.4"
     },
-    "packageManager": "pnpm@10.15.1"
+    "packageManager": "pnpm@10.15.1",
+    "dependencies": {
+        "@radix-ui/react-separator": "^1.1.8",
+        "@radix-ui/react-tooltip": "^1.2.8"
+    }
 }

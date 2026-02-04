@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { useMutation, useQuery } from 'convex/react';
 import { Paperclip, X, FileText, ImageIcon, Loader2 } from 'lucide-react';
 
@@ -16,10 +16,15 @@ export interface UploadedFile {
   size: number;
 }
 
+export interface FileUploadZoneHandle {
+  openFilePicker: () => void;
+}
+
 interface FileUploadZoneProps {
   files: UploadedFile[];
   onFilesChange: (files: UploadedFile[]) => void;
   disabled?: boolean;
+  showTriggerButton?: boolean;
   children: React.ReactNode;
 }
 
@@ -81,16 +86,21 @@ function FileChip({
   );
 }
 
-export function FileUploadZone({
+export const FileUploadZone = forwardRef<FileUploadZoneHandle, FileUploadZoneProps>(function FileUploadZone({
   files,
   onFilesChange,
   disabled,
+  showTriggerButton = true,
   children,
-}: FileUploadZoneProps) {
+}, ref) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+
+  useImperativeHandle(ref, () => ({
+    openFilePicker: () => fileInputRef.current?.click(),
+  }));
 
   const uploadFile = useCallback(
     async (file: File): Promise<UploadedFile | null> => {
@@ -198,22 +208,24 @@ export function FileUploadZone({
 
       <div className="relative">
         {children}
-        <div className="absolute bottom-2 left-2 flex items-center gap-1">
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            disabled={disabled === true || isUploading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {isUploading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Paperclip className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        {showTriggerButton && (
+          <div className="absolute bottom-2 left-2 flex items-center gap-1">
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              disabled={disabled === true || isUploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       <input
@@ -231,4 +243,4 @@ export function FileUploadZone({
       />
     </div>
   );
-}
+});

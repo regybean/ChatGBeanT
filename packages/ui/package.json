@@ -23,6 +23,10 @@
         "./popover": "./src/components/popover.tsx",
         "./command": "./src/components/command.tsx",
         "./badge": "./src/components/badge.tsx",
+        "./sidebar": "./src/components/sidebar.tsx",
+        "./tooltip": "./src/components/tooltip.tsx",
+        "./separator": "./src/components/separator.tsx",
+        "./sheet": "./src/components/sheet.tsx",
         "./cn": "./src/lib/utils.ts"
     },
     "scripts": {
@@ -39,7 +43,9 @@
         "@radix-ui/react-popover": "catalog:",
         "@radix-ui/react-scroll-area": "catalog:",
         "@radix-ui/react-select": "catalog:",
+        "@radix-ui/react-separator": "catalog:",
         "@radix-ui/react-slot": "catalog:",
+        "@radix-ui/react-tooltip": "catalog:",
         "class-variance-authority": "catalog:",
         "clsx": "catalog:",
         "cmdk": "catalog:",
