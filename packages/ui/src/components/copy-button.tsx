@@ -30,7 +30,7 @@ export function CopyButton({ text, className, iconClassName, onCopy }: CopyButto
     <button
       onClick={handleCopy}
       className={cn(
-        'inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
+        'inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/50',
         className,
       )}
       aria-label={copied ? 'Copied' : 'Copy to clipboard'}

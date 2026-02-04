@@ -3,8 +3,9 @@
 import { useMutation, useQuery } from 'convex/react';
 import { useUser } from '@clerk/nextjs';
 import { useTheme } from 'next-themes';
-import { Sun, Moon, Monitor, LogOut } from 'lucide-react';
+import { Sun, Moon, Monitor, LogOut, FileText, Shield } from 'lucide-react';
 import { useClerk } from '@clerk/nextjs';
+import Link from 'next/link';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
 import { Button } from '@chatgbeant/ui/button';
@@ -142,6 +143,30 @@ export default function SettingsPage() {
             >
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Legal */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Legal</CardTitle>
+            <CardDescription>
+              Review our policies
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/terms-of-service">
+                <FileText className="mr-2 h-4 w-4" />
+                Terms of Service
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full justify-start">
+              <Link href="/privacy-policy">
+                <Shield className="mr-2 h-4 w-4" />
+                Privacy Policy
+              </Link>
             </Button>
           </CardContent>
         </Card>

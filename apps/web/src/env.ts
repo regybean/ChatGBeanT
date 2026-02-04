@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 export const env = createEnv({
     server: {
-        CONVEX_DEPLOYMENT: z.string().optional(),
         OPENROUTER_API_KEY: z.string().min(1),
         NODE_ENV: z
             .enum(['development', 'production', 'test'])

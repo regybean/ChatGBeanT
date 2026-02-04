@@ -8,7 +8,7 @@ catalog:
   '@ai-sdk/provider-utils': ^4.0.13
   '@clerk/clerk-react': 5.57.1
   '@clerk/nextjs': 6.37.1
-  '@clerk/themes': ^2.4.19
+  '@clerk/themes': ^2.4.51
   '@convex-dev/agent': github:get-convex/agent#rc/ai-sdk-v6
   '@convex-dev/rate-limiter': ^0.3.2
   '@eslint/compat': 2.0.2

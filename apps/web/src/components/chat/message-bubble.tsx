@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { User, Bot, Loader2 } from 'lucide-react';
 import { useSmoothText } from '@convex-dev/agent/react';
 import type { UIMessage } from '@convex-dev/agent';
@@ -8,14 +9,13 @@ import { cn } from '@chatgbeant/ui/cn';
 import { MarkdownContent } from '@chatgbeant/ui/markdown-content';
 import { Avatar, AvatarFallback } from '@chatgbeant/ui/avatar';
 import { CopyButton } from '@chatgbeant/ui/copy-button';
-import { ProviderIcon } from '@chatgbeant/ui/provider-icon';
 
 interface MessageBubbleProps {
   message: UIMessage;
   model?: string;
 }
 
-export function MessageBubble({ message, model }: MessageBubbleProps) {
+export const MessageBubble = memo(function MessageBubble({ message, model }: MessageBubbleProps) {
   const isUser = message.role === 'user';
   const isStreaming = message.status === 'streaming';
 
@@ -26,10 +26,6 @@ export function MessageBubble({ message, model }: MessageBubbleProps) {
 
   // Show typing indicator when streaming but no content yet
   const showTypingIndicator = isStreaming && !visibleText;
-
-  // Extract model name for display
-  const displayModel = model;
-  const modelName = displayModel?.split('/').pop()?.replaceAll('-', ' ') ?? '';
 
   return (
     <div
@@ -88,20 +84,17 @@ export function MessageBubble({ message, model }: MessageBubbleProps) {
               )}
             >
               <CopyButton text={visibleText} />
-              {!isUser && displayModel && (
-                <div className="flex items-center gap-1 rounded-md bg-muted/80 px-2 py-1 text-xs text-muted-foreground">
-                  <ProviderIcon
-                    provider=""
-                    modelId={displayModel}
-                    size={12}
-                  />
-                  <span className="capitalize">{modelName}</span>
-                </div>
-              )}
             </div>
           )}
         </div>
       </div>
     </div>
   );
-}
+}, (prev, next) => {
+  return (
+    prev.message.key === next.message.key &&
+    prev.message.text === next.message.text &&
+    prev.message.status === next.message.status &&
+    prev.model === next.model
+  );
+});

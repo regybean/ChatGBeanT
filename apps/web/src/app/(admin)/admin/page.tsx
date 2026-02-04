@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from 'convex/react';
+import Link from 'next/link';
+import { Users, Bot } from 'lucide-react';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
+import { Card, CardHeader, CardTitle, CardDescription } from '@chatgbeant/ui/card';
 
 import { StatsCards } from '~/components/admin/stats-cards';
 
@@ -37,6 +40,35 @@ export default function AdminDashboard() {
             </div>
 
             <StatsCards stats={stats} />
+
+            <div className="grid gap-4 sm:grid-cols-2">
+                <Link href="/admin/users">
+                    <Card className="transition-colors hover:bg-accent">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <Users className="h-5 w-5 text-muted-foreground" />
+                                <CardTitle className="text-lg">User Management</CardTitle>
+                            </div>
+                            <CardDescription>
+                                Search users, manage tiers and roles
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+                </Link>
+                <Link href="/admin/models">
+                    <Card className="transition-colors hover:bg-accent">
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <Bot className="h-5 w-5 text-muted-foreground" />
+                                <CardTitle className="text-lg">Model Management</CardTitle>
+                            </div>
+                            <CardDescription>
+                                Configure featured models and availability
+                            </CardDescription>
+                        </CardHeader>
+                    </Card>
+                </Link>
+            </div>
         </div>
     );
 }

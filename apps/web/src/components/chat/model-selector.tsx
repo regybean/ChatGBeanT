@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from 'convex/react';
-import { ChevronsUpDown, Check, Search } from 'lucide-react';
+import { ChevronsUpDown, Check, Search, Clock } from 'lucide-react';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
 import { Button } from '@chatgbeant/ui/button';
@@ -37,6 +37,7 @@ export function ModelSelector({
     api.openrouter.listModels,
     search ? { searchTerm: search } : {},
   );
+  const recentModelIds = useQuery(api.settings.getRecentModels);
 
   // Use featured models when no search, all models when searching
   const displayModels = useMemo(() => {
@@ -52,6 +53,17 @@ export function ModelSelector({
     return displayModels.filter((m) => m.tier === 'basic');
   }, [displayModels, userTier]);
 
+  // Build recently used models list from IDs
+  const recentModels = useMemo(() => {
+    if (!recentModelIds || recentModelIds.length === 0) return [];
+    const allAvailable = [...(allModels ?? []), ...(featuredModels ?? [])];
+    // Deduplicate by openRouterId
+    const modelMap = new Map(allAvailable.map((m) => [m.openRouterId, m]));
+    return recentModelIds
+      .map((id) => modelMap.get(id))
+      .filter((m): m is NonNullable<typeof m> => m != null);
+  }, [recentModelIds, allModels, featuredModels]);
+
   // Find selected model info
   const selectedModel = useMemo(() => {
     const fromAll = allModels?.find((m) => m.openRouterId === value);
@@ -63,6 +75,51 @@ export function ModelSelector({
 
   const displayName = selectedModel?.name ?? value.split('/').pop() ?? 'Select model';
 
+  const handleSelect = (openRouterId: string) => {
+    onChange(openRouterId);
+    setOpen(false);
+    setSearch('');
+  };
+
+  const renderModelItem = (model: NonNullable<typeof selectedModel>) => (
+    <button
+      key={model._id}
+      onClick={() => handleSelect(model.openRouterId)}
+      className={cn(
+        'flex w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent',
+        value === model.openRouterId && 'bg-accent',
+      )}
+    >
+      <ProviderIcon
+        provider={model.provider}
+        modelId={model.openRouterId}
+        size={14}
+        className="shrink-0"
+      />
+      <div className="flex flex-1 flex-col items-start gap-0.5 overflow-hidden">
+        <div className="flex w-full items-center gap-1.5">
+          <span className="truncate font-medium">
+            {model.name}
+          </span>
+          {value === model.openRouterId && (
+            <Check className="ml-auto h-4 w-4 shrink-0" />
+          )}
+        </div>
+        {model.description && (
+          <span className="line-clamp-2 text-xs text-muted-foreground">
+            {model.description}
+          </span>
+        )}
+      </div>
+      <Badge
+        variant={model.tier === 'premium' ? 'default' : 'secondary'}
+        className="ml-auto shrink-0 text-[10px]"
+      >
+        {model.tier === 'premium' ? 'Pro' : 'Basic'}
+      </Badge>
+    </button>
+  );
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -70,7 +127,7 @@ export function ModelSelector({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-[280px] justify-between"
+          className="w-[340px] justify-between"
           disabled={disabled}
         >
           <div className="flex items-center gap-2 truncate">
@@ -85,7 +142,7 @@ export function ModelSelector({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[320px] p-0" align="start">
+      <PopoverContent className="w-[420px] p-0" align="start">
         <div className="flex items-center border-b px-3">
           <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
           <input
@@ -96,8 +153,18 @@ export function ModelSelector({
             className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
-        <ScrollArea className="max-h-[300px]">
+        <ScrollArea className="max-h-[450px]">
           <div className="p-1">
+            {!search && recentModels.length > 0 && (
+              <>
+                <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  <Clock className="h-3 w-3" />
+                  Recently Used
+                </div>
+                {recentModels.map(renderModelItem)}
+                <div className="my-1 border-t" />
+              </>
+            )}
             {!search && (
               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
                 Featured Models
@@ -108,50 +175,7 @@ export function ModelSelector({
                 No models found
               </div>
             ) : (
-              filteredModels.map((model) => (
-                <button
-                  key={model._id}
-                  onClick={() => {
-                    onChange(model.openRouterId);
-                    setOpen(false);
-                    setSearch('');
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent',
-                    value === model.openRouterId && 'bg-accent',
-                  )}
-                >
-                  <ProviderIcon
-                    provider={model.provider}
-                    modelId={model.openRouterId}
-                    size={14}
-                    className="shrink-0"
-                  />
-                  <div className="flex flex-1 flex-col items-start gap-0.5 overflow-hidden">
-                    <div className="flex w-full items-center gap-1.5">
-                      <span className="truncate font-medium">
-                        {model.name}
-                      </span>
-                      {value === model.openRouterId && (
-                        <Check className="ml-auto h-4 w-4 shrink-0" />
-                      )}
-                    </div>
-                    {model.description && (
-                      <span className="truncate text-xs text-muted-foreground">
-                        {model.description.length > 60
-                          ? model.description.slice(0, 60) + '...'
-                          : model.description}
-                      </span>
-                    )}
-                  </div>
-                  <Badge
-                    variant={model.tier === 'premium' ? 'default' : 'secondary'}
-                    className="ml-auto shrink-0 text-[10px]"
-                  >
-                    {model.tier === 'premium' ? 'Pro' : 'Basic'}
-                  </Badge>
-                </button>
-              ))
+              filteredModels.map(renderModelItem)
             )}
             {!search && (
               <div className="border-t px-2 py-2">

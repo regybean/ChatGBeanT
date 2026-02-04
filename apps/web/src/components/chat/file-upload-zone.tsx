@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { Paperclip, X, FileText, ImageIcon, Loader2 } from 'lucide-react';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
+import { Id } from '@chatgbeant/backend/convex/_generated/dataModel';
 import { Button } from '@chatgbeant/ui/button';
 import { cn } from '@chatgbeant/ui/cn';
 
-interface UploadedFile {
+export interface UploadedFile {
   storageId: string;
   name: string;
   type: string;
@@ -39,6 +40,45 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function FileChip({
+  file,
+  onRemove,
+}: {
+  file: UploadedFile;
+  onRemove: () => void;
+}) {
+  const fileUrl = useQuery(api.files.getFileUrl, {
+    storageId: file.storageId as Id<'_storage'>,
+  });
+  const isImage = file.type.startsWith('image/');
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2 py-1 text-xs">
+      {isImage && fileUrl ? (
+        <img
+          src={fileUrl}
+          alt={file.name}
+          className="h-8 w-8 rounded object-cover"
+        />
+      ) : isImage ? (
+        <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
+      ) : (
+        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+      )}
+      <span className="max-w-[120px] truncate">{file.name}</span>
+      <span className="text-muted-foreground">
+        ({formatFileSize(file.size)})
+      </span>
+      <button
+        onClick={onRemove}
+        className="ml-1 text-muted-foreground hover:text-destructive"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </div>
+  );
 }
 
 export function FileUploadZone({
@@ -147,26 +187,11 @@ export function FileUploadZone({
       {files.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-2">
           {files.map((file, index) => (
-            <div
+            <FileChip
               key={file.storageId}
-              className="flex items-center gap-1.5 rounded-md border bg-muted/50 px-2 py-1 text-xs"
-            >
-              {file.type.startsWith('image/') ? (
-                <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-              ) : (
-                <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              )}
-              <span className="max-w-[120px] truncate">{file.name}</span>
-              <span className="text-muted-foreground">
-                ({formatFileSize(file.size)})
-              </span>
-              <button
-                onClick={() => removeFile(index)}
-                className="ml-1 text-muted-foreground hover:text-destructive"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
+              file={file}
+              onRemove={() => removeFile(index)}
+            />
           ))}
         </div>
       )}

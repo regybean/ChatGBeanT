@@ -18,6 +18,7 @@
         "@chatgbeant/logger": "workspace:*",
         "@chatgbeant/ui": "workspace:*",
         "@clerk/nextjs": "catalog:",
+        "@clerk/themes": "catalog:",
         "@convex-dev/agent": "catalog:",
         "@t3-oss/env-nextjs": "catalog:",
         "convex": "catalog:",

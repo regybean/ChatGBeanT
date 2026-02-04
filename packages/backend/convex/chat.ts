@@ -173,6 +173,7 @@ export const sendMessage = action({
         threadId: v.string(),
         content: v.string(),
         model: v.string(),
+        fileIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -231,23 +232,53 @@ export const sendMessage = action({
         // Create agent with the requested model
         const agent = createAgentWithModel(args.model);
 
-        // Stream the response using the agent with delta streaming enabled
-        await agent.streamText(
-            ctx,
-            { threadId: args.threadId },
-            {
-                prompt: args.content,
-            },
-            {
-                // Enable delta streaming so messages update in real-time
-                saveStreamDeltas: true,
+        // Build message content - support file attachments
+        if (args.fileIds && args.fileIds.length > 0) {
+            const parts: Array<{ type: string; text?: string; image?: string; mimeType?: string }> = [];
+            parts.push({ type: 'text', text: args.content });
+
+            for (const fileId of args.fileIds) {
+                const url = await ctx.storage.getUrl(fileId as never);
+                if (url) {
+                    parts.push({ type: 'image', image: url });
+                }
             }
-        );
+
+            await agent.streamText(
+                ctx,
+                { threadId: args.threadId },
+                {
+                    messages: [{ role: 'user', content: parts as never }],
+                },
+                {
+                    saveStreamDeltas: true,
+                }
+            );
+        } else {
+            // Stream the response using the agent with delta streaming enabled
+            await agent.streamText(
+                ctx,
+                { threadId: args.threadId },
+                {
+                    prompt: args.content,
+                },
+                {
+                    // Enable delta streaming so messages update in real-time
+                    saveStreamDeltas: true,
+                }
+            );
+        }
 
         // Update token usage (+1 per message)
         await ctx.runMutation(internal.chat.updateTokenUsage, {
             userId: user._id,
             isPremium,
+        });
+
+        // Track last used model
+        await ctx.runMutation(internal.settings.internalUpdateLastUsedModel, {
+            userId: user._id,
+            model: args.model,
         });
 
         // Update thread title if needed

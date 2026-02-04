@@ -11,6 +11,9 @@ interface OpenRouterModel {
     prompt: string;
     completion: string;
   };
+  architecture?: {
+    input_modalities?: string[];
+  };
 }
 
 interface OpenRouterResponse {
@@ -75,6 +78,7 @@ export const syncModels = action({
           provider: extractProvider(model.id),
           description: model.description?.substring(0, 500),
           contextLength: model.context_length,
+          inputModalities: model.architecture?.input_modalities,
           promptPrice: parseFloat(model.pricing.prompt) || 0,
           completionPrice: parseFloat(model.pricing.completion) || 0,
           tier: calculateTier(model.pricing.completion),
@@ -98,6 +102,7 @@ export const upsertModelsBatch = internalMutation({
         provider: v.string(),
         description: v.optional(v.string()),
         contextLength: v.optional(v.number()),
+        inputModalities: v.optional(v.array(v.string())),
         promptPrice: v.number(),
         completionPrice: v.number(),
         tier: v.union(v.literal('basic'), v.literal('premium')),
@@ -119,6 +124,7 @@ export const upsertModelsBatch = internalMutation({
           provider: model.provider,
           description: model.description,
           contextLength: model.contextLength,
+          inputModalities: model.inputModalities,
           promptPrice: model.promptPrice,
           completionPrice: model.completionPrice,
           tier: model.tier,
@@ -131,6 +137,7 @@ export const upsertModelsBatch = internalMutation({
           provider: model.provider,
           description: model.description,
           contextLength: model.contextLength,
+          inputModalities: model.inputModalities,
           promptPrice: model.promptPrice,
           completionPrice: model.completionPrice,
           tier: model.tier,
@@ -399,6 +406,7 @@ export const internalSyncModels = internalAction({
           provider: extractProvider(model.id),
           description: model.description?.substring(0, 500),
           contextLength: model.context_length,
+          inputModalities: model.architecture?.input_modalities,
           promptPrice: parseFloat(model.pricing.prompt) || 0,
           completionPrice: parseFloat(model.pricing.completion) || 0,
           tier: calculateTier(model.pricing.completion),

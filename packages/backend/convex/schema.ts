@@ -36,6 +36,7 @@ export default defineSchema({
     provider: v.string(),
     description: v.optional(v.string()),
     contextLength: v.optional(v.number()),
+    inputModalities: v.optional(v.array(v.string())),
     promptPrice: v.number(),
     completionPrice: v.number(),
     tier: v.union(v.literal('basic'), v.literal('premium')),
@@ -50,6 +51,8 @@ export default defineSchema({
   userSettings: defineTable({
     userId: v.id('users'),
     theme: v.union(v.literal('light'), v.literal('dark'), v.literal('system')),
+    lastUsedModel: v.optional(v.string()),
+    recentModels: v.optional(v.array(v.string())),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
 });

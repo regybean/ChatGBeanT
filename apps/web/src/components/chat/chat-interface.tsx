@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAction, useQuery } from 'convex/react';
 import { useUIMessages } from '@convex-dev/agent/react';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -13,6 +13,7 @@ import { ScrollArea } from '@chatgbeant/ui/scroll-area';
 
 import { MessageBubble } from './message-bubble';
 import { ModelSelector } from './model-selector';
+import { FileUploadZone, type UploadedFile } from './file-upload-zone';
 
 interface ChatInterfaceProps {
   isNewChat: boolean;
@@ -23,21 +24,38 @@ interface ChatInterfaceProps {
 }
 
 const DRAFT_KEY_PREFIX = 'chatgbeant:draft:';
+const DEFAULT_MODEL = 'openai/gpt-4o-mini';
 
 export function ChatInterface({
   isNewChat,
   threadId,
-  initialModel = 'anthropic/claude-3.5-haiku',
+  initialModel,
   onFirstMessage,
   onMessageSent,
 }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(initialModel);
+  const [selectedModel, setSelectedModel] = useState(initialModel ?? DEFAULT_MODEL);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Update model when initialModel loads (e.g. from async query)
+  useEffect(() => {
+    if (initialModel) {
+      setSelectedModel(initialModel);
+    }
+  }, [initialModel]);
+
   const currentUser = useQuery(api.users.getCurrent);
+
+  // Check if selected model supports file/image input
+  const selectedModelInfo = useQuery(api.openrouter.getModelByOpenRouterId, {
+    openRouterId: selectedModel,
+  });
+  const supportsFiles = selectedModelInfo?.inputModalities?.some(
+    (m) => m === 'image' || m === 'file',
+  ) ?? false;
 
   // Use agent's useUIMessages hook for real-time streaming support
   const { results: messages } = useUIMessages(
@@ -59,13 +77,16 @@ export function ChatInterface({
     }
   }, [draftKey]);
 
-  // Save draft to localStorage
+  // Save draft to localStorage (debounced to avoid lag)
   useEffect(() => {
-    if (input) {
-      localStorage.setItem(draftKey, input);
-    } else {
-      localStorage.removeItem(draftKey);
-    }
+    const timer = setTimeout(() => {
+      if (input) {
+        localStorage.setItem(draftKey, input);
+      } else {
+        localStorage.removeItem(draftKey);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
   }, [input, draftKey]);
 
   // Scroll to bottom when messages change
@@ -80,7 +101,9 @@ export function ChatInterface({
     if (!input.trim() || isLoading) return;
 
     const content = input.trim();
+    const filesToSend = [...uploadedFiles];
     setInput('');
+    setUploadedFiles([]);
     localStorage.removeItem(draftKey);
     setIsLoading(true);
 
@@ -99,6 +122,9 @@ export function ChatInterface({
         threadId: targetThreadId,
         content,
         model: selectedModel,
+        ...(filesToSend.length > 0 && {
+          fileIds: filesToSend.map((f) => f.storageId),
+        }),
       });
 
       // Notify parent that message was sent (for redirecting on new chats)
@@ -127,6 +153,10 @@ export function ChatInterface({
 
   // Check if any message is currently streaming
   const isAnyStreaming = messages.some((m) => m.status === 'streaming');
+
+  const handleStop = () => {
+    setIsLoading(false);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -161,29 +191,83 @@ export function ChatInterface({
               userTier={currentUser?.tier ?? 'basic'}
             />
           </div>
-          <div className="relative">
-            <Textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your message..."
-              className="min-h-[100px] resize-none pr-12"
-              disabled={isLoading || isAnyStreaming}
-            />
-            <Button
-              type="submit"
-              size="icon"
-              className="absolute bottom-2 right-2"
-              disabled={!input.trim() || isLoading || isAnyStreaming}
+          {supportsFiles ? (
+            <FileUploadZone
+              files={uploadedFiles}
+              onFilesChange={setUploadedFiles}
+              disabled={isLoading}
             >
-              {isLoading || isAnyStreaming ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message..."
+                className="min-h-[100px] resize-none pl-12 pr-12"
+                disabled={isLoading}
+              />
+              {isAnyStreaming ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  className="absolute bottom-2 right-2"
+                  onClick={handleStop}
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
               ) : (
-                <Send className="h-4 w-4" />
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="absolute bottom-2 right-2"
+                  disabled={!input.trim() || isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
               )}
-            </Button>
-          </div>
+            </FileUploadZone>
+          ) : (
+            <div className="relative">
+              <Textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Type your message..."
+                className="min-h-[100px] resize-none pr-12"
+                disabled={isLoading}
+              />
+              {isAnyStreaming ? (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="destructive"
+                  className="absolute bottom-2 right-2"
+                  onClick={handleStop}
+                >
+                  <Square className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  size="icon"
+                  className="absolute bottom-2 right-2"
+                  disabled={!input.trim() || isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
           <p className="mt-2 text-center text-xs text-muted-foreground">
             Press Enter to send, Shift+Enter for new line
           </p>
