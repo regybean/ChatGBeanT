@@ -12,12 +12,6 @@ import { Textarea } from '@chatgbeant/ui/textarea';
 import { ScrollArea } from '@chatgbeant/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@chatgbeant/ui/avatar';
 import { MarkdownContent } from '@chatgbeant/ui/markdown-content';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@chatgbeant/ui/dropdown-menu';
 
 import type { Id } from '@chatgbeant/backend/convex/_generated/dataModel';
 
@@ -26,7 +20,10 @@ import { ModelSelector } from './model-selector';
 import type { UploadedFile, FileUploadZoneHandle } from './file-upload-zone';
 import { FileUploadZone } from './file-upload-zone';
 import { DocumentChip } from './document-chip';
+import { VideoSettings } from './video-settings';
+import type { VideoConfig } from './video-settings';
 import { useLastUsedModel } from '~/hooks/use-last-used-model';
+import { useDocumentsModal } from '~/hooks/use-documents-modal';
 
 // Optimistic user message component - shown immediately before server confirms
 function OptimisticUserMessage({ content }: { content: string }) {
@@ -37,8 +34,8 @@ function OptimisticUserMessage({ content }: { content: string }) {
                     <User className="h-4 w-4" />
                 </AvatarFallback>
             </Avatar>
-            <div className="flex max-w-[80%] flex-col gap-1">
-                <div className="relative rounded-lg px-4 py-2 bg-primary text-primary-foreground">
+            <div className="flex max-w-[90%] md:max-w-[80%] flex-col gap-1 overflow-hidden">
+                <div className="relative rounded-lg px-4 py-2 bg-primary text-primary-foreground overflow-hidden break-words text-sm md:text-base">
                     <MarkdownContent content={content} className="prose-invert" />
                 </div>
             </div>
@@ -55,8 +52,8 @@ function OptimisticThinkingIndicator() {
                     <Bot className="h-4 w-4" />
                 </AvatarFallback>
             </Avatar>
-            <div className="flex max-w-[80%] flex-col gap-1">
-                <div className="relative rounded-lg px-4 py-2 bg-muted">
+            <div className="flex max-w-[90%] md:max-w-[80%] flex-col gap-1 overflow-hidden">
+                <div className="relative rounded-lg px-4 py-2 bg-muted text-sm md:text-base">
                     <div className="flex items-center gap-2 text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
                         <span>Thinking...</span>
@@ -120,6 +117,11 @@ export function ChatInterface({
     const prevMessageCountRef = useRef(0);
     const cancelledKeysRef = useRef<Set<string>>(new Set());
     const fileUploadRef = useRef<FileUploadZoneHandle>(null);
+    const [videoConfig, setVideoConfig] = useState<VideoConfig>({
+        duration: 5,
+        aspectRatio: '16:9',
+        quality: 'standard',
+    });
 
     // Update model only when threadModel loads for existing chats
     // This handles the case where we navigate to an existing thread
@@ -130,6 +132,19 @@ export function ChatInterface({
     }, [threadModel, isNewChat]);
 
     const currentUser = useQuery(api.users.getCurrent);
+    const { setOnAttachDocument } = useDocumentsModal();
+
+    // Register document attach callback with documents modal context
+    useEffect(() => {
+        const handleAttach = (documentId: Id<'documents'>, title: string) => {
+            setAttachedDocuments((prev) => {
+                if (prev.some((d) => d.documentId === documentId)) return prev;
+                return [...prev, { documentId, title }];
+            });
+        };
+        setOnAttachDocument(handleAttach);
+        return () => setOnAttachDocument(undefined);
+    }, [setOnAttachDocument]);
 
     const documents = useQuery(api.documents.listDocuments) ?? [];
 
@@ -140,6 +155,13 @@ export function ChatInterface({
     const supportsFiles = selectedModelInfo?.inputModalities?.some(
         (m) => m === 'image' || m === 'file',
     ) ?? false;
+    const isVideoModel = selectedModelInfo?.outputModalities?.includes('video') ?? false;
+
+    // Query media for this thread
+    const mediaRecords = useQuery(
+        api.media.getMediaForThread,
+        threadId ? { threadId } : 'skip',
+    ) ?? [];
 
     // Use agent's useUIMessages hook for real-time streaming support
     const { results: messages, status: messagesStatus } = useUIMessages(
@@ -157,7 +179,8 @@ export function ChatInterface({
             const pending = localStorage.getItem(PENDING_MESSAGE_KEY);
             if (pending) {
                 try {
-                    const { content, model, targetThreadId } = JSON.parse(pending);
+                    const parsed = JSON.parse(pending) as { content: string; model: string; targetThreadId: string };
+                    const { content, model, targetThreadId } = parsed;
                     if (targetThreadId === threadId) {
                         setOptimisticMessage({ content, model });
                         // Clear immediately - real messages will replace optimistic ones
@@ -175,6 +198,7 @@ export function ChatInterface({
         if (messages.length > 0 && optimisticMessage) {
             // Check if our optimistic message content appears in the real messages
             const hasRealUserMessage = messages.some(
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- text can be undefined
                 (m) => m.role === 'user' && m.text?.includes(optimisticMessage.content.slice(0, 50))
             );
             if (hasRealUserMessage) {
@@ -208,17 +232,31 @@ export function ChatInterface({
         return () => clearTimeout(timer);
     }, [input, draftKey]);
 
+    // Helper to get the Radix ScrollArea viewport
+    const getViewport = () =>
+        scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
+
     // Scroll to bottom only when new messages arrive or user is near bottom
     useEffect(() => {
-        const el = scrollRef.current;
-        if (!el) return;
+        const vp = getViewport();
+        if (!vp) return;
         const messageCountChanged = messages.length !== prevMessageCountRef.current;
-        const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+        const isNearBottom = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 100;
         if (messageCountChanged || isNearBottom) {
-            el.scrollTop = el.scrollHeight;
+            vp.scrollTop = vp.scrollHeight;
         }
         prevMessageCountRef.current = messages.length;
     }, [messages]);
+
+    // Scroll to bottom when opening a thread
+    useEffect(() => {
+        if (!threadId) return;
+        const timer = setTimeout(() => {
+            const vp = getViewport();
+            if (vp) vp.scrollTop = vp.scrollHeight;
+        }, 150);
+        return () => clearTimeout(timer);
+    }, [threadId]);
 
     const handleSubmit = async (e: { preventDefault: () => void }) => {
         e.preventDefault();
@@ -325,11 +363,11 @@ export function ChatInterface({
 
     const handleStop = () => {
         // Soft cancel: mark all currently streaming messages as cancelled
-        messages.forEach((m) => {
+        for (const m of messages) {
             if (m.status === 'streaming') {
                 cancelledKeysRef.current.add(m.key);
             }
-        });
+        }
         setIsLoading(false);
         setOptimisticMessage(null);
     };
@@ -338,7 +376,7 @@ export function ChatInterface({
         <div className="flex h-full flex-col">
             {showMessageArea ? (
                 <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-                    <div className="mx-auto max-w-3xl space-y-6">
+                    <div className="mx-auto max-w-3xl space-y-6 px-2 md:px-0">
                         {/* Show skeletons while loading existing thread */}
                         {showSkeleton && (
                             <>
@@ -353,14 +391,16 @@ export function ChatInterface({
                                 message={message}
                                 model={message.role === 'assistant' ? selectedModel : undefined}
                                 isCancelled={cancelledKeysRef.current.has(message.key)}
+                                mediaRecords={mediaRecords}
                             />
                         ))}
                         {/* Optimistic user message - shown immediately before server confirms */}
+                        {/* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- text can be undefined */}
                         {optimisticMessage?.content && !messages.some(m => m.role === 'user' && m.text?.includes(optimisticMessage.content.slice(0, 50))) && (
                             <OptimisticUserMessage content={optimisticMessage.content} />
                         )}
                         {/* Optimistic thinking indicator - shown while waiting for assistant response */}
-                        {showOptimisticThinking && optimisticMessage?.content && (
+                        {showOptimisticThinking && optimisticMessage.content && (
                             <OptimisticThinkingIndicator />
                         )}
                     </div>
@@ -377,7 +417,7 @@ export function ChatInterface({
 
             <div className="border-t p-4">
                 <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
-                    <div className="mb-2 flex items-center gap-2">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
                         <ModelSelector
                             value={selectedModel}
                             onChange={setSelectedModel}
@@ -395,41 +435,24 @@ export function ChatInterface({
                         >
                             <Paperclip className="h-4 w-4" />
                         </Button>
-                        {documents.length > 0 && (
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="icon"
-                                        className="shrink-0"
-                                        disabled={isLoading}
-                                        title="Attach document"
-                                    >
-                                        <FileText className="h-4 w-4" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-56">
-                                    {documents.map((doc) => (
-                                        <DropdownMenuItem
-                                            key={doc._id}
-                                            disabled={attachedDocuments.some(
-                                                (d) => d.documentId === doc._id,
-                                            )}
-                                            onClick={() =>
-                                                setAttachedDocuments((prev) => [
-                                                    ...prev,
-                                                    { documentId: doc._id, title: doc.title },
-                                                ])
-                                            }
-                                        >
-                                            <FileText className="mr-2 h-4 w-4" />
-                                            <span className="truncate">{doc.title}</span>
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        )}
+                        {documents.length > 0 && documents.slice(0, 3).map((doc) => (
+                            <button
+                                key={doc._id}
+                                type="button"
+                                className="hidden sm:flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                                disabled={isLoading || attachedDocuments.some((d) => d.documentId === doc._id)}
+                                onClick={() =>
+                                    setAttachedDocuments((prev) => [
+                                        ...prev,
+                                        { documentId: doc._id, title: doc.title },
+                                    ])
+                                }
+                                title={`Attach "${doc.title}"`}
+                            >
+                                <FileText className="h-3 w-3" />
+                                <span className="max-w-[80px] truncate">{doc.title}</span>
+                            </button>
+                        ))}
                     </div>
                     {attachedDocuments.length > 0 && (
                         <div className="mb-2 flex flex-wrap gap-1.5">
@@ -446,6 +469,9 @@ export function ChatInterface({
                                 />
                             ))}
                         </div>
+                    )}
+                    {isVideoModel && (
+                        <VideoSettings config={videoConfig} onChange={setVideoConfig} />
                     )}
                     {supportsFiles ? (
                         <FileUploadZone

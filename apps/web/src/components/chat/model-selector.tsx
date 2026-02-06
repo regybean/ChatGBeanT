@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery } from 'convex/react';
-import { ChevronsUpDown, Check, Search, Clock } from 'lucide-react';
+import { ChevronsUpDown, Check, Search, Clock, Image, Video, MessageSquare } from 'lucide-react';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
 import { Button } from '@chatgbeant/ui/button';
@@ -45,8 +45,8 @@ export function ModelSelector({
     const [isSearching, setIsSearching] = useState(false);
 
     // Update cache when we get new valid results for a search
-    if (search && allModels !== undefined && allModels.length > 0 && search !== lastCachedSearch) {
-        setCachedSearchResults(allModels);
+    if (search && allModels !== undefined && search !== lastCachedSearch) {
+        if (allModels.length > 0) setCachedSearchResults(allModels);
         setLastCachedSearch(search);
         setIsSearching(false);
     }
@@ -60,19 +60,11 @@ export function ModelSelector({
     // When searching and loading, show cached previous results to avoid flicker
     const displayModels = useMemo(() => {
         if (search) {
-            // If we have results for this search, use them
-            if (allModels !== undefined && allModels.length > 0) {
-                return allModels;
-            }
-            // If loading or no results yet, show cached results from previous search
-            if (cachedSearchResults.length > 0) {
-                return cachedSearchResults;
-            }
-            // If no cache and we have results (even empty), show them
-            if (allModels !== undefined) {
-                return allModels;
-            }
-            // Still loading, show featured as fallback
+            // If we have results for this search, use them (even if empty)
+            if (allModels !== undefined) return allModels;
+            // If loading, show cached results from previous search as fallback
+            if (cachedSearchResults.length > 0) return cachedSearchResults;
+            // Still loading with no cache, show featured as fallback
             return featuredModels ?? [];
         }
         return featuredModels ?? [];
@@ -80,6 +72,20 @@ export function ModelSelector({
 
     // Show all models; premium ones are grayed out for basic users
     const filteredModels = displayModels;
+
+    // Categorize models by output modality
+    const { textModels, imageModels, videoModels } = useMemo(() => {
+        const text: typeof filteredModels = [];
+        const image: typeof filteredModels = [];
+        const video: typeof filteredModels = [];
+        for (const m of filteredModels) {
+            const out = (m as { outputModalities?: string[] }).outputModalities ?? [];
+            if (out.includes('video')) video.push(m);
+            else if (out.includes('image')) image.push(m);
+            else text.push(m);
+        }
+        return { textModels: text, imageModels: image, videoModels: video };
+    }, [filteredModels]);
 
     // Build recently used models list from IDs
     const recentModels = useMemo(() => {
@@ -109,8 +115,12 @@ export function ModelSelector({
         setSearch('');
     };
 
-    const isModelDisabled = (model: NonNullable<typeof selectedModel>) =>
-        userTier !== 'pro' && model.tier === 'premium';
+    const isModelDisabled = (model: NonNullable<typeof selectedModel>) => {
+        if (userTier !== 'pro' && model.tier === 'premium') return true;
+        const out = (model as { outputModalities?: string[] }).outputModalities ?? [];
+        if (userTier !== 'pro' && (out.includes('image') || out.includes('video'))) return true;
+        return false;
+    };
 
     const renderModelItem = (model: NonNullable<typeof selectedModel>) => {
         const disabled = isModelDisabled(model);
@@ -165,7 +175,7 @@ export function ModelSelector({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-[340px] justify-between"
+                    className="w-full sm:w-[340px] justify-between"
                     disabled={disabled}
                 >
                     <div className="flex items-center gap-2 truncate">
@@ -180,7 +190,7 @@ export function ModelSelector({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[420px] p-0" align="start">
+            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[420px] overflow-hidden p-0" align="start">
                 <div className="flex items-center border-b px-3">
                     <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
                     <input
@@ -212,9 +222,45 @@ export function ModelSelector({
                             <div className="py-6 text-center text-sm text-muted-foreground">
                                 No models found
                             </div>
+                        ) : ((imageModels.length > 0 || videoModels.length > 0) ? (
+                            <>
+                                {textModels.length > 0 && (
+                                    <>
+                                        {search && (
+                                            <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                                                <MessageSquare className="h-3 w-3" />
+                                                Text Models
+                                            </div>
+                                        )}
+                                        {textModels.map((m) => renderModelItem(m))}
+                                    </>
+                                )}
+                                {imageModels.length > 0 && (
+                                    <>
+                                        <div className="my-1 border-t" />
+                                        <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                                            <Image className="h-3 w-3" />
+                                            Image Models
+                                            {userTier !== 'pro' && <Badge variant="default" className="ml-1 text-[9px] px-1 py-0">Pro</Badge>}
+                                        </div>
+                                        {imageModels.map((m) => renderModelItem(m))}
+                                    </>
+                                )}
+                                {videoModels.length > 0 && (
+                                    <>
+                                        <div className="my-1 border-t" />
+                                        <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                                            <Video className="h-3 w-3" />
+                                            Video Models
+                                            {userTier !== 'pro' && <Badge variant="default" className="ml-1 text-[9px] px-1 py-0">Pro</Badge>}
+                                        </div>
+                                        {videoModels.map((m) => renderModelItem(m))}
+                                    </>
+                                )}
+                            </>
                         ) : (
                             filteredModels.map((m) => renderModelItem(m))
-                        )}
+                        ))}
                         {!search && (
                             <div className="border-t px-2 py-2">
                                 <button

@@ -9,4 +9,10 @@ crons.interval(
   internal.openrouter.internalSyncModels,
 );
 
+crons.interval(
+  'sync-fal-models',
+  { hours: 6 },
+  internal.falModels.internalSyncFalModels,
+);
+
 export default crons;

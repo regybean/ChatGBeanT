@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
-import { cva, type VariantProps } from 'class-variance-authority';
+import { cva } from 'class-variance-authority';
+import type { VariantProps } from 'class-variance-authority';
 import { PanelLeft } from 'lucide-react';
 
 import { cn } from '../lib/utils';
@@ -23,7 +24,7 @@ const SIDEBAR_WIDTH_MOBILE = '18rem';
 const SIDEBAR_WIDTH_ICON = '3rem';
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b';
 
-type SidebarContext = {
+interface SidebarContext {
     state: 'expanded' | 'collapsed';
     open: boolean;
     setOpen: (open: boolean) => void;
@@ -31,7 +32,7 @@ type SidebarContext = {
     setOpenMobile: (open: boolean) => void;
     isMobile: boolean;
     toggleSidebar: () => void;
-};
+}
 
 const SidebarContext = React.createContext<SidebarContext | null>(null);
 
@@ -649,9 +650,13 @@ const SidebarMenuSkeleton = React.forwardRef<
         showIcon?: boolean;
     }
 >(({ className, showIcon = false, ...props }, ref) => {
+    // Use React.useId for deterministic unique value instead of Math.random
+    const id = React.useId();
     const width = React.useMemo(() => {
-        return `${Math.floor(Math.random() * 40) + 50}%`;
-    }, []);
+        // Generate a stable width based on the id hash
+        const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        return `${(hash % 40) + 50}%`;
+    }, [id]);
 
     return (
         <div

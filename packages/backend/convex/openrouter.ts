@@ -1,5 +1,5 @@
 import { v } from 'convex/values';
-import { action, internalAction, internalMutation, mutation, query } from './_generated/server';
+import { action, internalAction, internalMutation, internalQuery, mutation, query } from './_generated/server';
 import { internal } from './_generated/api';
 
 interface OpenRouterModel {
@@ -13,6 +13,7 @@ interface OpenRouterModel {
   };
   architecture?: {
     input_modalities?: string[];
+    output_modalities?: string[];
   };
 }
 
@@ -79,6 +80,7 @@ export const syncModels = action({
           description: model.description?.substring(0, 500),
           contextLength: model.context_length,
           inputModalities: model.architecture?.input_modalities,
+          outputModalities: model.architecture?.output_modalities,
           promptPrice: parseFloat(model.pricing.prompt) || 0,
           completionPrice: parseFloat(model.pricing.completion) || 0,
           tier: calculateTier(model.pricing.completion),
@@ -103,6 +105,7 @@ export const upsertModelsBatch = internalMutation({
         description: v.optional(v.string()),
         contextLength: v.optional(v.number()),
         inputModalities: v.optional(v.array(v.string())),
+        outputModalities: v.optional(v.array(v.string())),
         promptPrice: v.number(),
         completionPrice: v.number(),
         tier: v.union(v.literal('basic'), v.literal('premium')),
@@ -125,6 +128,7 @@ export const upsertModelsBatch = internalMutation({
           description: model.description,
           contextLength: model.contextLength,
           inputModalities: model.inputModalities,
+          outputModalities: model.outputModalities,
           promptPrice: model.promptPrice,
           completionPrice: model.completionPrice,
           tier: model.tier,
@@ -138,6 +142,7 @@ export const upsertModelsBatch = internalMutation({
           description: model.description,
           contextLength: model.contextLength,
           inputModalities: model.inputModalities,
+          outputModalities: model.outputModalities,
           promptPrice: model.promptPrice,
           completionPrice: model.completionPrice,
           tier: model.tier,
@@ -172,19 +177,29 @@ export const listModels = query({
     // Filter active models
     models = models.filter((m) => m.isActive);
 
-    // Apply search filter
+    // Apply search filter with relevance scoring
     if (args.searchTerm) {
       const search = args.searchTerm.toLowerCase();
-      models = models.filter(
-        (m) =>
-          m.name.toLowerCase().includes(search) ||
-          m.provider.toLowerCase().includes(search) ||
-          m.openRouterId.toLowerCase().includes(search),
-      );
+      const scored = models
+        .map((m) => {
+          const nameLower = m.name.toLowerCase();
+          const providerLower = m.provider.toLowerCase();
+          const idLower = m.openRouterId.toLowerCase();
+          let score = 0;
+          if (nameLower.startsWith(search)) score = 3;
+          else if (nameLower.includes(search)) score = 2;
+          else if (providerLower.startsWith(search)) score = 1.5;
+          else if (providerLower.includes(search)) score = 1;
+          else if (idLower.includes(search)) score = 0.5;
+          return { model: m, score };
+        })
+        .filter((s) => s.score > 0);
+      scored.sort((a, b) => b.score - a.score || a.model.name.localeCompare(b.model.name));
+      models = scored.map((s) => s.model);
+    } else {
+      // Sort by name when not searching
+      models.sort((a, b) => a.name.localeCompare(b.name));
     }
-
-    // Sort by name
-    models.sort((a, b) => a.name.localeCompare(b.name));
 
     return models;
   },
@@ -225,16 +240,23 @@ export const searchModels = query({
     const search = args.searchTerm.toLowerCase();
     const models = await ctx.db.query('models').collect();
 
-    return models
-      .filter(
-        (m) =>
-          m.isActive &&
-          (m.name.toLowerCase().includes(search) ||
-            m.provider.toLowerCase().includes(search) ||
-            m.openRouterId.toLowerCase().includes(search)),
-      )
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .slice(0, 20);
+    const scored = models
+      .filter((m) => m.isActive)
+      .map((m) => {
+        const nameLower = m.name.toLowerCase();
+        const providerLower = m.provider.toLowerCase();
+        const idLower = m.openRouterId.toLowerCase();
+        let score = 0;
+        if (nameLower.startsWith(search)) score = 3;
+        else if (nameLower.includes(search)) score = 2;
+        else if (providerLower.startsWith(search)) score = 1.5;
+        else if (providerLower.includes(search)) score = 1;
+        else if (idLower.includes(search)) score = 0.5;
+        return { model: m, score };
+      })
+      .filter((s) => s.score > 0);
+    scored.sort((a, b) => b.score - a.score || a.model.name.localeCompare(b.model.name));
+    return scored.map((s) => s.model).slice(0, 50);
   },
 });
 
@@ -363,6 +385,18 @@ export const listAllModelsAdmin = query({
 });
 
 /**
+ * Internal query to get a model by openRouterId (for use in actions)
+ */
+export const internalGetModel = internalQuery({
+  args: { openRouterId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db.query('models')
+      .withIndex('by_openrouter_id', (q) => q.eq('openRouterId', args.openRouterId))
+      .first();
+  },
+});
+
+/**
  * Get a single model by openRouterId
  */
 export const getModelByOpenRouterId = query({
@@ -407,6 +441,7 @@ export const internalSyncModels = internalAction({
           description: model.description?.substring(0, 500),
           contextLength: model.context_length,
           inputModalities: model.architecture?.input_modalities,
+          outputModalities: model.architecture?.output_modalities,
           promptPrice: parseFloat(model.pricing.prompt) || 0,
           completionPrice: parseFloat(model.pricing.completion) || 0,
           tier: calculateTier(model.pricing.completion),

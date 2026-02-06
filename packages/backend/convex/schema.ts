@@ -49,6 +49,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     contextLength: v.optional(v.number()),
     inputModalities: v.optional(v.array(v.string())),
+    outputModalities: v.optional(v.array(v.string())),
     promptPrice: v.number(),
     completionPrice: v.number(),
     tier: v.union(v.literal('basic'), v.literal('premium')),
@@ -67,6 +68,29 @@ export default defineSchema({
     recentModels: v.optional(v.array(v.string())),
     updatedAt: v.number(),
   }).index('by_user', ['userId']),
+
+  generatedMedia: defineTable({
+    userId: v.id('users'),
+    threadId: v.string(),
+    type: v.union(v.literal('image'), v.literal('video')),
+    url: v.optional(v.string()),
+    storageId: v.optional(v.id('_storage')),
+    prompt: v.string(),
+    model: v.string(),
+    provider: v.union(v.literal('openrouter'), v.literal('fal')),
+    status: v.union(v.literal('pending'), v.literal('generating'), v.literal('completed'), v.literal('failed')),
+    savedToDocuments: v.optional(v.boolean()),
+    metadata: v.optional(v.string()),
+    errorMessage: v.optional(v.string()),
+    falRequestId: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index('by_thread', ['threadId'])
+    .index('by_user', ['userId'])
+    .index('by_user_type', ['userId', 'type'])
+    .index('by_status', ['status'])
+    .index('by_user_saved', ['userId', 'savedToDocuments']),
 
   documents: defineTable({
     userId: v.id('users'),

@@ -14,6 +14,7 @@ import { cn } from '@chatgbeant/ui/cn';
 export default function AdminModelsPage() {
   const [search, setSearch] = useState('');
   const [syncing, setSyncing] = useState(false);
+  const [syncingFal, setSyncingFal] = useState(false);
   const [userSynced, setUserSynced] = useState(false);
   const getOrCreateUser = useMutation(api.users.getOrCreate);
 
@@ -26,6 +27,7 @@ export default function AdminModelsPage() {
     userSynced ? {} : 'skip',
   );
   const syncModels = useAction(api.openrouter.syncModels);
+  const syncFalModels = useAction(api.falModels.syncFalModels);
   const toggleActive = useMutation(api.openrouter.toggleModelActive);
   const toggleFeatured = useMutation(api.openrouter.toggleModelFeatured);
 
@@ -40,6 +42,20 @@ export default function AdminModelsPage() {
       );
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleSyncFal = async () => {
+    setSyncingFal(true);
+    try {
+      const result = await syncFalModels();
+      toast.success(`Synced ${result.syncedCount} models from FalAI`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to sync FalAI models',
+      );
+    } finally {
+      setSyncingFal(false);
     }
   };
 
@@ -73,14 +89,24 @@ export default function AdminModelsPage() {
             {models.length} total models | {activeCount} active | {featuredCount} featured
           </p>
         </div>
-        <Button onClick={handleSync} disabled={syncing}>
-          {syncing ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          Sync Models
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleSync} disabled={syncing}>
+            {syncing ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Sync OpenRouter
+          </Button>
+          <Button onClick={handleSyncFal} disabled={syncingFal} variant="outline">
+            {syncingFal ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Sync FalAI
+          </Button>
+        </div>
       </div>
 
       <div className="relative">

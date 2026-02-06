@@ -1,13 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/refs */
+
+import React from 'react';
 import { useConvexAuth } from 'convex/react';
 import Link from 'next/link';
 
 import { Button } from '@chatgbeant/ui/button';
 import { SidebarProvider, SidebarTrigger } from '@chatgbeant/ui/sidebar';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@chatgbeant/ui/tooltip';
 
 import { Sidebar } from '~/components/chat/sidebar';
+import { DocumentsModalProvider } from '~/hooks/use-documents-modal';
 
 export default function ChatLayout({
     children,
@@ -16,13 +24,14 @@ export default function ChatLayout({
 }) {
     const { isLoading, isAuthenticated } = useConvexAuth();
     // Track if we've ever been authenticated to prevent showing loading state on navigation
-    const [hasBeenAuthenticated, setHasBeenAuthenticated] = useState(false);
+    const hasBeenAuthenticatedRef = React.useRef(false);
 
-    useEffect(() => {
-        if (isAuthenticated) {
-            setHasBeenAuthenticated(true);
-        }
-    }, [isAuthenticated]);
+    // Update the ref when authenticated - using proper initialization pattern
+    if (isAuthenticated && hasBeenAuthenticatedRef.current === false) {
+        hasBeenAuthenticatedRef.current = true;
+    }
+
+    const hasBeenAuthenticated = hasBeenAuthenticatedRef.current;
 
     // Only show loading on initial auth check, not on subsequent navigations
     if (isLoading && !hasBeenAuthenticated) {
@@ -55,16 +64,25 @@ export default function ChatLayout({
 
     // Once authenticated, always show the main content (prevents loading flash on navigation)
     return (
-        <SidebarProvider>
-            <Sidebar />
-            <main className="flex flex-1 flex-col overflow-hidden">
-                <div className="flex items-center gap-2 border-b px-2 py-1">
-                    <SidebarTrigger />
-                </div>
-                <div className="flex flex-1 flex-col overflow-hidden">
-                    {children}
-                </div>
-            </main>
-        </SidebarProvider>
+        <DocumentsModalProvider>
+            <SidebarProvider>
+                <Sidebar />
+                <main className="flex flex-1 flex-col overflow-hidden">
+                    <div className="flex items-center gap-2 border-b px-2 py-1">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <SidebarTrigger className="h-9 w-9" />
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                                Toggle sidebar (Ctrl+B)
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
+                    <div className="flex flex-1 flex-col overflow-hidden">
+                        {children}
+                    </div>
+                </main>
+            </SidebarProvider>
+        </DocumentsModalProvider>
     );
 }

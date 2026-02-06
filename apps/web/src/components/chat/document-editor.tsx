@@ -20,7 +20,7 @@ export function DocumentEditor({ documentId }: DocumentEditorProps) {
     const updateContent = useMutation(api.documents.updateDocumentContent);
 
     const editor = useCreateBlockNote({
-        initialContent: document?.content ? JSON.parse(document.content) : undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- BlockNote uses complex internal types\n        initialContent: document?.content ? (JSON.parse(document.content) as any) : undefined,
     });
 
     const handleChange = useCallback(() => {

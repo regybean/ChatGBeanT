@@ -12,25 +12,25 @@ const isBrowser = typeof globalThis !== 'undefined' && !!globalThis.window;
 const subscribers = new Set<() => void>();
 
 function subscribe(callback: () => void) {
-  subscribers.add(callback);
-  return () => subscribers.delete(callback);
+    subscribers.add(callback);
+    return () => subscribers.delete(callback);
 }
 
 function getSnapshot(): string {
-  if (!isBrowser) {
-    return DEFAULT_MODEL;
-  }
-  return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_MODEL;
+    if (!isBrowser) {
+        return DEFAULT_MODEL;
+    }
+    return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_MODEL;
 }
 
 function getServerSnapshot(): string {
-  return DEFAULT_MODEL;
+    return DEFAULT_MODEL;
 }
 
 function notifySubscribers() {
-  for (const callback of subscribers) {
-    callback();
-  }
+    for (const callback of subscribers) {
+        callback();
+    }
 }
 
 /**
@@ -40,19 +40,19 @@ function notifySubscribers() {
  * This is synchronous and immediately available - no server roundtrip needed.
  */
 export function useLastUsedModel() {
-  const lastUsedModel = useSyncExternalStore(
-    subscribe,
-    getSnapshot,
-    getServerSnapshot
-  );
+    const lastUsedModel = useSyncExternalStore(
+        subscribe,
+        getSnapshot,
+        getServerSnapshot
+    );
 
-  const setLastUsedModel = useCallback((model: string) => {
-    if (!isBrowser) return;
-    localStorage.setItem(STORAGE_KEY, model);
-    notifySubscribers();
-  }, []);
+    const setLastUsedModel = useCallback((model: string) => {
+        if (!isBrowser) return;
+        localStorage.setItem(STORAGE_KEY, model);
+        notifySubscribers();
+    }, []);
 
-  return [lastUsedModel, setLastUsedModel] as const;
+    return [lastUsedModel, setLastUsedModel] as const;
 }
 
 /**
@@ -60,17 +60,17 @@ export function useLastUsedModel() {
  * Safe to call during SSR - returns default model.
  */
 export function getLastUsedModel(): string {
-  if (!isBrowser) {
-    return DEFAULT_MODEL;
-  }
-  return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_MODEL;
+    if (!isBrowser) {
+        return DEFAULT_MODEL;
+    }
+    return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_MODEL;
 }
 
 /**
  * Set the last used model directly (non-hook version).
  */
 export function setLastUsedModel(model: string): void {
-  if (!isBrowser) return;
-  localStorage.setItem(STORAGE_KEY, model);
-  notifySubscribers();
+    if (!isBrowser) return;
+    localStorage.setItem(STORAGE_KEY, model);
+    notifySubscribers();
 }

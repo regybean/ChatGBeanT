@@ -2,7 +2,8 @@
 
 import { useState, useRef, lazy, Suspense } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { FileText, Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, Search, Loader2, Image, Video, MessageSquarePlus, ChevronDown, ChevronRight } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Id } from '@chatgbeant/backend/convex/_generated/dataModel';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -25,9 +26,10 @@ const DocumentEditor = lazy(() =>
 interface DocumentsModalProps {
     open: boolean;
     onClose: () => void;
+    onAttachDocument?: (documentId: Id<'documents'>, title: string) => void;
 }
 
-export function DocumentsModal({ open, onClose }: DocumentsModalProps) {
+export function DocumentsModal({ open, onClose, onAttachDocument }: DocumentsModalProps) {
     const [selectedDocId, setSelectedDocId] = useState<Id<'documents'> | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [editingTitle, setEditingTitle] = useState<Id<'documents'> | null>(null);
@@ -37,10 +39,16 @@ export function DocumentsModal({ open, onClose }: DocumentsModalProps) {
     const titleInputRef = useRef<HTMLInputElement>(null);
     const newDocInputRef = useRef<HTMLInputElement>(null);
 
+    const [showImages, setShowImages] = useState(false);
+    const [showVideos, setShowVideos] = useState(false);
+    const [previewMedia, setPreviewMedia] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+
     const documents = useQuery(api.documents.listDocuments) ?? [];
     const createDocument = useMutation(api.documents.createDocument);
     const renameDocument = useMutation(api.documents.renameDocument);
     const deleteDocument = useMutation(api.documents.deleteDocument);
+    const savedImages = useQuery(api.media.getMediaForUser, { type: 'image' }) ?? [];
+    const savedVideos = useQuery(api.media.getMediaForUser, { type: 'video' }) ?? [];
 
     const filteredDocs = searchQuery
         ? documents.filter((d) => d.title.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -135,6 +143,19 @@ export function DocumentsModal({ open, onClose }: DocumentsModalProps) {
                                             <span className="flex-1 truncate">{doc.title}</span>
                                         )}
                                         <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100">
+                                            {onAttachDocument && (
+                                                <button
+                                                    className="rounded p-0.5 hover:bg-muted"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onAttachDocument(doc._id, doc.title);
+                                                        toast.success(`Added "${doc.title}" to chat`);
+                                                    }}
+                                                    title="Add to chat"
+                                                >
+                                                    <MessageSquarePlus className="h-3 w-3 text-primary" />
+                                                </button>
+                                            )}
                                             <button
                                                 className="rounded p-0.5 hover:bg-muted"
                                                 onClick={(e) => {
@@ -156,18 +177,96 @@ export function DocumentsModal({ open, onClose }: DocumentsModalProps) {
                                         </div>
                                     </div>
                                 ))}
-                                {filteredDocs.length === 0 && (
+                                {filteredDocs.length === 0 && !searchQuery && (
                                     <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-                                        {searchQuery ? 'No documents found' : 'No documents yet'}
+                                        No documents yet
                                     </p>
+                                )}
+                                {filteredDocs.length === 0 && searchQuery && (
+                                    <p className="px-2 py-4 text-center text-xs text-muted-foreground">
+                                        No documents found
+                                    </p>
+                                )}
+
+                                {/* Generated Images Section */}
+                                {savedImages.length > 0 && (
+                                    <div className="border-t pt-2 mt-2">
+                                        <button
+                                            className="flex w-full items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                            onClick={() => setShowImages(!showImages)}
+                                        >
+                                            {showImages ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                            <Image className="h-3 w-3" />
+                                            Generated Images ({savedImages.length})
+                                        </button>
+                                        {showImages && (
+                                            <div className="grid grid-cols-3 gap-1 p-1 mt-1">
+                                                {savedImages.map((img) => (
+                                                    <button
+                                                        key={img._id}
+                                                        className="aspect-square overflow-hidden rounded border hover:ring-2 hover:ring-primary"
+                                                        onClick={() => img.url && setPreviewMedia({ url: img.url, type: 'image' })}
+                                                    >
+                                                        {img.url && (
+                                                            <img src={img.url} alt={img.prompt} className="h-full w-full object-cover" loading="lazy" />
+                                                        )}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Generated Videos Section */}
+                                {savedVideos.length > 0 && (
+                                    <div className="border-t pt-2 mt-2">
+                                        <button
+                                            className="flex w-full items-center gap-1.5 px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                            onClick={() => setShowVideos(!showVideos)}
+                                        >
+                                            {showVideos ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                            <Video className="h-3 w-3" />
+                                            Generated Videos ({savedVideos.length})
+                                        </button>
+                                        {showVideos && (
+                                            <div className="space-y-1 p-1 mt-1">
+                                                {savedVideos.map((vid) => (
+                                                    <button
+                                                        key={vid._id}
+                                                        className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent"
+                                                        onClick={() => vid.url && setPreviewMedia({ url: vid.url, type: 'video' })}
+                                                    >
+                                                        <Video className="h-3 w-3 shrink-0 text-muted-foreground" />
+                                                        <span className="truncate">{vid.prompt.slice(0, 40)}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </ScrollArea>
                     </div>
 
-                    {/* Right panel: editor */}
+                    {/* Right panel: editor or media preview */}
                     <div className="flex flex-1 flex-col overflow-hidden pt-10">
-                        {selectedDocId ? (
+                        {previewMedia ? (
+                            <div className="flex flex-1 flex-col items-center justify-center p-4">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="mb-4 self-start"
+                                    onClick={() => setPreviewMedia(null)}
+                                >
+                                    Back to documents
+                                </Button>
+                                {previewMedia.type === 'image' ? (
+                                    <img src={previewMedia.url} alt="Preview" className="max-h-full max-w-full rounded-lg object-contain" />
+                                ) : (
+                                    <video src={previewMedia.url} controls className="max-h-full max-w-full rounded-lg" />
+                                )}
+                            </div>
+                        ) : (selectedDocId ? (
                             <Suspense
                                 fallback={
                                     <div className="flex flex-1 items-center justify-center">
@@ -182,7 +281,7 @@ export function DocumentsModal({ open, onClose }: DocumentsModalProps) {
                                 <FileText className="mb-4 h-12 w-12 opacity-20" />
                                 <p>Select a document or create a new one</p>
                             </div>
-                        )}
+                        ))}
                     </div>
                 </div>
             </DialogContent>

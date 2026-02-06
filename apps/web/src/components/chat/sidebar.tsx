@@ -11,8 +11,10 @@ import {
     Settings,
     LayoutDashboard,
     Plus,
+    FileText,
 } from 'lucide-react';
-import { DndContext, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core';
+import { DndContext } from '@dnd-kit/core';
+import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core';
 import type { Id } from '@chatgbeant/backend/convex/_generated/dataModel';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -32,8 +34,8 @@ import { ThreadGroup } from './thread-group';
 import { ThreadItem } from './thread-item';
 import { GroupHeader } from './group-header';
 import { RenameDialog } from './rename-dialog';
-import { DocumentsDropdown } from './documents-dropdown';
 import { DocumentsModal } from './documents-modal';
+import { useDocumentsModal } from '~/hooks/use-documents-modal';
 
 // Hidden component that maintains an active subscription to prefetch thread data
 function ThreadPrefetcher({ threadId }: { threadId: string | null }) {
@@ -52,11 +54,12 @@ export function Sidebar() {
     const { user } = useUser();
     const currentUser = useQuery(api.users.getCurrent);
 
+    const { isOpen: documentsModalOpen, openModal: openDocumentsModal, closeModal: closeDocumentsModal, onAttachDocument } = useDocumentsModal();
+
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
     const [isDraggingThread, setIsDraggingThread] = useState(false);
     const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-    const [documentsModalOpen, setDocumentsModalOpen] = useState(false);
     const [renameTarget, setRenameTarget] = useState<{
         threadId?: string;
         groupId?: Id<'threadGroups'>;
@@ -153,8 +156,10 @@ export function Sidebar() {
             const { active, over } = event;
             if (!over) return;
 
-            const threadId = (active.data.current as { threadId?: string })?.threadId;
-            const targetGroupId = (over.data.current as { groupId?: Id<'threadGroups'> })?.groupId;
+            const activeData = active.data.current as { threadId?: string } | undefined;
+            const overData = over.data.current as { groupId?: Id<'threadGroups'> } | undefined;
+            const threadId = activeData?.threadId;
+            const targetGroupId = overData?.groupId;
 
             if (threadId && targetGroupId) {
                 void moveThreadToGroup({ threadId, groupId: targetGroupId });
@@ -236,7 +241,7 @@ export function Sidebar() {
                                 {!searchTerm && (
                                     <>
                                         {/* User-created groups */}
-                                        {groupedThreads?.groups?.map((g) => (
+                                        {groupedThreads?.groups.map((g) => (
                                             <GroupHeader
                                                 key={g._id}
                                                 groupId={g._id}
@@ -260,18 +265,16 @@ export function Sidebar() {
                                                 {groupedThreads.today.map((t) => renderThread(t))}
                                             </ThreadGroup>
                                         )}
-                                        {groupedThreads?.last7Days &&
-                                            groupedThreads.last7Days.length > 0 && (
-                                                <ThreadGroup label="Last 7 Days">
-                                                    {groupedThreads.last7Days.map((t) => renderThread(t))}
-                                                </ThreadGroup>
-                                            )}
-                                        {groupedThreads?.last30Days &&
-                                            groupedThreads.last30Days.length > 0 && (
-                                                <ThreadGroup label="Last 30 Days">
-                                                    {groupedThreads.last30Days.map((t) => renderThread(t))}
-                                                </ThreadGroup>
-                                            )}
+                                        {groupedThreads?.last7Days && groupedThreads.last7Days.length > 0 && (
+                                            <ThreadGroup label="Last 7 Days">
+                                                {groupedThreads.last7Days.map((t) => renderThread(t))}
+                                            </ThreadGroup>
+                                        )}
+                                        {groupedThreads?.last30Days && groupedThreads.last30Days.length > 0 && (
+                                            <ThreadGroup label="Last 30 Days">
+                                                {groupedThreads.last30Days.map((t) => renderThread(t))}
+                                            </ThreadGroup>
+                                        )}
                                         {groupedThreads?.older && groupedThreads.older.length > 0 && (
                                             <ThreadGroup label="Older" defaultOpen={false}>
                                                 {groupedThreads.older.map((t) => renderThread(t))}
@@ -285,7 +288,10 @@ export function Sidebar() {
                 </SidebarContent>
 
                 <div className="border-t px-2 py-2">
-                    <DocumentsDropdown onOpenModal={() => setDocumentsModalOpen(true)} />
+                    <Button variant="ghost" className="w-full justify-start text-sm"
+                        onClick={openDocumentsModal}>
+                        <FileText className="mr-2 h-4 w-4" /> Documents
+                    </Button>
                 </div>
 
                 <TokenUsage />
@@ -339,7 +345,8 @@ export function Sidebar() {
 
             <DocumentsModal
                 open={documentsModalOpen}
-                onClose={() => setDocumentsModalOpen(false)}
+                onClose={closeDocumentsModal}
+                onAttachDocument={onAttachDocument}
             />
         </>
     );

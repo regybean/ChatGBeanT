@@ -247,6 +247,266 @@ export const sendMessage = action({
             );
         }
 
+        // Look up model info to determine output type
+        const modelInfo = await ctx.runQuery(internal.openrouter.internalGetModel, {
+            openRouterId: args.model,
+        });
+        const outputModalities = modelInfo?.outputModalities ?? [];
+        const isImageModel = outputModalities.includes('image');
+        const isVideoModel = outputModalities.includes('video');
+        const isFalModel = modelInfo?.provider === 'FalAI' || args.model.startsWith('fal-ai/');
+
+        // ─── FalAI image generation path ───────────────
+        if (isFalModel && isImageModel) {
+            if (user.tier !== 'pro') {
+                throw new Error('Image generation requires a Pro subscription');
+            }
+
+            const mediaId = await ctx.runMutation(internal.media.createMediaRecord, {
+                userId: user._id,
+                threadId: args.threadId,
+                type: 'image',
+                prompt: args.content,
+                model: args.model,
+                provider: 'fal',
+            });
+
+            await chatAgent.saveMessage(ctx, {
+                threadId: args.threadId,
+                prompt: args.content,
+            });
+
+            // Schedule image generation via FalAI
+            await ctx.scheduler.runAfter(0, internal.fal.submitImageGeneration, {
+                mediaId,
+                threadId: args.threadId,
+                model: args.model,
+                prompt: args.content,
+            });
+
+            // Add placeholder assistant message with media reference
+            await chatAgent.saveMessage(ctx, {
+                threadId: args.threadId,
+                message: { role: 'assistant', content: `[GENERATED_IMAGE:${mediaId}]` },
+            });
+
+            await ctx.runMutation(internal.chat.updateTokenUsage, { userId: user._id, isPremium: true });
+            await ctx.runMutation(internal.settings.internalUpdateLastUsedModel, { userId: user._id, model: args.model });
+            await ctx.runMutation(internal.chat.maybeUpdateThreadTitle, { userThreadId: userThread._id, threadId: args.threadId, content: args.content });
+            await ctx.runMutation(internal.chat.updateThreadTimestamp, { userThreadId: userThread._id });
+
+            return { threadId: args.threadId };
+        }
+
+        // ─── FalAI video generation path ───────────────
+        if (isFalModel && isVideoModel) {
+            if (user.tier !== 'pro') {
+                throw new Error('Video generation requires a Pro subscription');
+            }
+
+            const mediaId = await ctx.runMutation(internal.media.createMediaRecord, {
+                userId: user._id,
+                threadId: args.threadId,
+                type: 'video',
+                prompt: args.content,
+                model: args.model,
+                provider: 'fal',
+            });
+
+            await chatAgent.saveMessage(ctx, {
+                threadId: args.threadId,
+                prompt: args.content,
+            });
+
+            // Schedule video generation via FalAI queue
+            await ctx.scheduler.runAfter(0, internal.fal.submitVideoGeneration, {
+                mediaId,
+                threadId: args.threadId,
+                model: args.model,
+                prompt: args.content,
+            });
+
+            // Add placeholder assistant message
+            await chatAgent.saveMessage(ctx, {
+                threadId: args.threadId,
+                message: { role: 'assistant', content: `[GENERATED_VIDEO:${mediaId}]` },
+            });
+
+            await ctx.runMutation(internal.chat.updateTokenUsage, { userId: user._id, isPremium: true });
+            await ctx.runMutation(internal.settings.internalUpdateLastUsedModel, { userId: user._id, model: args.model });
+            await ctx.runMutation(internal.chat.maybeUpdateThreadTitle, { userThreadId: userThread._id, threadId: args.threadId, content: args.content });
+            await ctx.runMutation(internal.chat.updateThreadTimestamp, { userThreadId: userThread._id });
+
+            return { threadId: args.threadId };
+        }
+
+        // ─── OpenRouter Image generation path ─────────────────────
+        if (isImageModel) {
+            if (user.tier !== 'pro') {
+                throw new Error('Image generation requires a Pro subscription');
+            }
+
+            // Create media record
+            const mediaId = await ctx.runMutation(internal.media.createMediaRecord, {
+                userId: user._id,
+                threadId: args.threadId,
+                type: 'image',
+                prompt: args.content,
+                model: args.model,
+                provider: 'openrouter',
+            });
+
+            // Add user message via the default agent
+            await chatAgent.saveMessage(ctx, {
+                threadId: args.threadId,
+                prompt: args.content,
+            });
+
+            try {
+                // Update status to generating
+                await ctx.runMutation(internal.media.updateMediaStatus, {
+                    mediaId,
+                    status: 'generating',
+                });
+
+                // Call OpenRouter API for image generation
+                const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    },
+                    body: JSON.stringify({
+                        model: args.model,
+                        messages: [{ role: 'user', content: args.content }],
+                    }),
+                });
+
+                if (!apiResponse.ok) {
+                    const errBody = await apiResponse.text();
+                    throw new Error(`${apiResponse.status}: ${errBody || apiResponse.statusText}`);
+                }
+
+                const result = await apiResponse.json() as {
+                    choices?: Array<{
+                        message?: {
+                            content?: string | Array<{
+                                type: string;
+                                image_url?: { url: string };
+                            }>;
+                        };
+                    }>;
+                };
+
+                // Extract image URL from response
+                let imageUrl: string | undefined;
+                const content = result.choices?.[0]?.message?.content;
+                if (typeof content === 'string') {
+                    // Check for markdown image or URL in text
+                    const urlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/) ??
+                        content.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|webp|gif))/i);
+                    imageUrl = urlMatch?.[1];
+                    if (!imageUrl && content.startsWith('data:image/')) {
+                        imageUrl = content;
+                    }
+                } else if (Array.isArray(content)) {
+                    const imageBlock = content.find((c) => c.type === 'image_url');
+                    imageUrl = imageBlock?.image_url?.url;
+                }
+
+                if (imageUrl) {
+                    let storageId: string | undefined;
+
+                    // If it's a URL (not base64), download and store in Convex
+                    if (imageUrl.startsWith('http')) {
+                        const imgResponse = await fetch(imageUrl);
+                        if (imgResponse.ok) {
+                            const blob = await imgResponse.blob();
+                            storageId = await ctx.storage.store(blob);
+                        }
+                    } else if (imageUrl.startsWith('data:image/')) {
+                        // Decode base64
+                        const [header, base64Data] = imageUrl.split(',');
+                        if (base64Data) {
+                            const mimeMatch = header?.match(/data:([^;]+)/);
+                            const mimeType = mimeMatch?.[1] ?? 'image/png';
+                            const binaryData = atob(base64Data);
+                            const bytes = new Uint8Array(binaryData.length);
+                            for (let i = 0; i < binaryData.length; i++) {
+                                bytes[i] = binaryData.charCodeAt(i);
+                            }
+                            const blob = new Blob([bytes], { type: mimeType });
+                            storageId = await ctx.storage.store(blob);
+                        }
+                    }
+
+                    // Get public URL if stored
+                    let publicUrl = imageUrl;
+                    if (storageId) {
+                        const sUrl = await ctx.storage.getUrl(storageId);
+                        if (sUrl) publicUrl = sUrl;
+                    }
+
+                    await ctx.runMutation(internal.media.updateMediaStatus, {
+                        mediaId,
+                        status: 'completed',
+                        url: publicUrl,
+                        ...(storageId ? { storageId: storageId as never } : {}),
+                    });
+
+                    // Add assistant message with media reference
+                    await chatAgent.saveMessage(ctx, {
+                        threadId: args.threadId,
+                        message: { role: 'assistant', content: `[GENERATED_IMAGE:${mediaId}]` },
+                    });
+                } else {
+                    // No image extracted - treat response as text
+                    const textContent = typeof content === 'string' ? content : 'Image generation did not return an image.';
+                    await ctx.runMutation(internal.media.updateMediaStatus, {
+                        mediaId,
+                        status: 'failed',
+                        errorMessage: 'No image in response',
+                    });
+                    await chatAgent.saveMessage(ctx, {
+                        threadId: args.threadId,
+                        message: { role: 'assistant', content: textContent },
+                    });
+                }
+            } catch (error) {
+                const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+                await ctx.runMutation(internal.media.updateMediaStatus, {
+                    mediaId,
+                    status: 'failed',
+                    errorMessage: errorMsg,
+                });
+                await chatAgent.saveMessage(ctx, {
+                    threadId: args.threadId,
+                    message: { role: 'assistant', content: `Image generation failed: ${errorMsg}` },
+                });
+            }
+
+            // Update token usage + tracking
+            await ctx.runMutation(internal.chat.updateTokenUsage, {
+                userId: user._id,
+                isPremium: true,
+            });
+            await ctx.runMutation(internal.settings.internalUpdateLastUsedModel, {
+                userId: user._id,
+                model: args.model,
+            });
+            await ctx.runMutation(internal.chat.maybeUpdateThreadTitle, {
+                userThreadId: userThread._id,
+                threadId: args.threadId,
+                content: args.content,
+            });
+            await ctx.runMutation(internal.chat.updateThreadTimestamp, {
+                userThreadId: userThread._id,
+            });
+
+            return { threadId: args.threadId };
+        }
+
+        // ─── Text generation path (existing) ───────────
         // Create agent with the requested model
         const agent = createAgentWithModel(args.model);
 
