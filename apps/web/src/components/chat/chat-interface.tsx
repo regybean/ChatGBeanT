@@ -368,9 +368,23 @@ export function ChatInterface({
     // Check if any message is currently streaming
     const isAnyStreaming = messages.some((m) => m.status === 'streaming');
 
-    // Show thinking state when we have optimistic message but no assistant response yet
-    const showOptimisticThinking = optimisticMessage !== null && !messages.some(
-        (m) => m.role === 'assistant' && m.status === 'streaming'
+    // Check if the last message in the thread is from the user (no assistant response yet)
+    const lastMessage = messages.at(-1) ?? null;
+    const awaitingAssistantResponse = lastMessage?.role === 'user' && !messages.some(
+        (m) => m.role === 'assistant' && (m.status === 'streaming' || m.status === 'pending')
+    );
+
+    // Show thinking state when:
+    // 1. We have an optimistic message but no assistant response yet, OR
+    // 2. We're still loading (action running) and the last real message is from the user
+    //    with no assistant response (handles OpenRouter image models where the action
+    //    takes time and the optimistic message gets cleared before the assistant responds)
+    const showOptimisticThinking = (
+        optimisticMessage !== null && !messages.some(
+            (m) => m.role === 'assistant' && m.status === 'streaming'
+        )
+    ) || (
+        isLoading && !optimisticMessage && awaitingAssistantResponse
     );
 
     // Show skeleton when loading existing thread with no messages yet and no optimistic message
@@ -415,7 +429,7 @@ export function ChatInterface({
                             <OptimisticUserMessage content={optimisticMessage.content} />
                         )}
                         {/* Optimistic thinking indicator - shown while waiting for assistant response */}
-                        {showOptimisticThinking && optimisticMessage.content && (
+                        {showOptimisticThinking && (
                             <OptimisticThinkingIndicator />
                         )}
                     </div>

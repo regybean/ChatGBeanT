@@ -18,6 +18,7 @@ import {
     DropdownMenuTrigger,
 } from '@chatgbeant/ui/dropdown-menu';
 import { Button } from '@chatgbeant/ui/button';
+import { SidebarMenuItem, SidebarMenuButton } from '@chatgbeant/ui/sidebar';
 
 interface ThreadGroup {
     _id: Id<'threadGroups'>;
@@ -104,12 +105,10 @@ export function ThreadItem({
     const [isHovered, setIsHovered] = useState(false);
 
     return (
-        <div
+        <SidebarMenuItem
             ref={setNodeRef}
             style={style}
             className={cn(
-                'flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent',
-                isActive && 'bg-accent',
                 isDragging && 'opacity-50 shadow-lg',
             )}
             onMouseEnter={() => {
@@ -129,26 +128,27 @@ export function ThreadItem({
                 {...listeners}
                 {...attributes}
                 className={cn(
-                    'shrink-0 cursor-grab touch-none transition-opacity',
+                    'absolute left-0.5 top-1/2 -translate-y-1/2 shrink-0 cursor-grab touch-none transition-opacity z-10',
                     isHovered ? 'opacity-50 hover:opacity-100' : 'opacity-0'
                 )}
                 title="Drag to reorder"
             >
-                <GripVertical className="h-4 w-4" />
+                <GripVertical className="h-3 w-3" />
             </div>
-            <button
+            <SidebarMenuButton
+                isActive={isActive}
                 onClick={handleClick}
-                className="min-w-0 flex-1 cursor-pointer truncate text-left"
+                className="pl-5"
             >
-                <span className="truncate">{title}</span>
-            </button>
+                <span>{title}</span>
+            </SidebarMenuButton>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button
                         variant="ghost"
                         size="icon"
                         className={cn(
-                            'h-6 w-6 shrink-0 transition-opacity',
+                            'absolute right-1 top-1.5 h-5 w-5 shrink-0 transition-opacity',
                             isHovered ? 'opacity-100' : 'opacity-0'
                         )}
                     >
@@ -195,6 +195,6 @@ export function ThreadItem({
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-        </div>
+        </SidebarMenuItem>
     );
 }

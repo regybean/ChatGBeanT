@@ -40,28 +40,25 @@ export function GroupHeader({
     });
 
     return (
-        <div
+        <li
             ref={setNodeRef}
             className={cn(
-                'space-y-0.5 rounded-md transition-all duration-200 border-2 border-transparent',
-                // When thread is over this group: purple dashed border
+                'rounded-md transition-all duration-200 border-2 border-transparent',
                 isOver && 'bg-primary/10 border-dashed border-primary',
-                // When dragging but not over this group: grey dashed border
                 !isOver && isDraggingThread && 'border-dashed border-muted-foreground/50'
-                // No hover effect when not dragging
             )}
         >
             <div className="group flex w-full items-center gap-1 px-2 py-1.5">
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="flex flex-1 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                    className="flex min-w-0 flex-1 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
                     {isOpen ? (
-                        <ChevronDown className="h-3 w-3" />
+                        <ChevronDown className="h-3 w-3 shrink-0" />
                     ) : (
-                        <ChevronRight className="h-3 w-3" />
+                        <ChevronRight className="h-3 w-3 shrink-0" />
                     )}
-                    {name}
+                    <span className="truncate">{name}</span>
                 </button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -88,7 +85,7 @@ export function GroupHeader({
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
-            {isOpen && <div className="space-y-0.5">{children}</div>}
-        </div>
+            {isOpen && <ul className="flex w-full min-w-0 flex-col gap-0.5">{children}</ul>}
+        </li>
     );
 }

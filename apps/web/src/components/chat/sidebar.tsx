@@ -23,7 +23,10 @@ import {
     Sidebar as ShadcnSidebar,
     SidebarContent,
     SidebarFooter,
+    SidebarGroup,
+    SidebarGroupContent,
     SidebarHeader,
+    SidebarMenu,
     SidebarRail,
 } from '@chatgbeant/ui/sidebar';
 import { ScrollArea } from '@chatgbeant/ui/scroll-area';
@@ -208,8 +211,8 @@ export function Sidebar() {
                 <div className="space-y-2 p-2">
                     <Button asChild variant="outline" className="w-full justify-start">
                         <Link href="/c/new">
-                            <MessageSquarePlus className="mr-2 h-4 w-4" />
-                            New Chat
+                            <MessageSquarePlus className="mr-2 h-4 w-4 shrink-0" />
+                            <span className="truncate">New Chat</span>
                         </Link>
                     </Button>
                     <ThreadSearch value={searchTerm} onChange={setSearchTerm} />
@@ -219,15 +222,17 @@ export function Sidebar() {
                         className="w-full justify-start text-xs text-muted-foreground"
                         onClick={handleCreateGroup}
                     >
-                        <Plus className="mr-2 h-3 w-3" />
-                        Create Group
+                        <Plus className="mr-2 h-3 w-3 shrink-0" />
+                        <span className="truncate">Create Group</span>
                     </Button>
                 </div>
 
                 <SidebarContent>
                     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
                         <ScrollArea className="flex-1 px-2">
-                            <div className="space-y-2 py-2">
+                            <SidebarGroup>
+                                <SidebarGroupContent>
+                                    <SidebarMenu>
                                 {searchTerm && searchResults && searchResults.length > 0 && (
                                     <ThreadGroup label={`Results (${searchResults.length})`}>
                                         {searchResults.map((t) => renderThread(t))}
@@ -282,7 +287,9 @@ export function Sidebar() {
                                         )}
                                     </>
                                 )}
-                            </div>
+                                    </SidebarMenu>
+                                </SidebarGroupContent>
+                            </SidebarGroup>
                         </ScrollArea>
                     </DndContext>
                 </SidebarContent>
@@ -290,7 +297,8 @@ export function Sidebar() {
                 <div className="border-t px-2 py-2">
                     <Button variant="ghost" className="w-full justify-start text-sm"
                         onClick={openDocumentsModal}>
-                        <FileText className="mr-2 h-4 w-4" /> Documents
+                        <FileText className="mr-2 h-4 w-4 shrink-0" />
+                        <span className="truncate">Documents</span>
                     </Button>
                 </div>
 
@@ -317,7 +325,7 @@ export function Sidebar() {
                                 },
                             }}
                         />
-                        <div className="flex-1 truncate">
+                        <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">
                                 {user?.fullName ?? user?.emailAddresses[0]?.emailAddress}
                             </p>
@@ -325,7 +333,7 @@ export function Sidebar() {
                                 {currentUser?.tier === 'pro' ? 'Pro' : 'Basic'} Plan
                             </p>
                         </div>
-                        <Button variant="ghost" size="icon" asChild>
+                        <Button variant="ghost" size="icon" className="shrink-0" asChild>
                             <Link href="/settings">
                                 <Settings className="h-4 w-4" />
                             </Link>
