@@ -193,6 +193,8 @@ export const sendMessage = action({
         model: v.string(),
         fileIds: v.optional(v.array(v.string())),
         documentIds: v.optional(v.array(v.id('documents'))),
+        duration: v.optional(v.number()),
+        aspectRatio: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const identity = await ctx.auth.getUserIdentity();
@@ -327,9 +329,21 @@ export const sendMessage = action({
                 provider: 'fal',
             });
 
+            // Resolve attached image URLs for image-to-video models
+            const imageUrls: string[] = [];
+            if (args.fileIds && args.fileIds.length > 0) {
+                for (const fileId of args.fileIds) {
+                    const url = await ctx.storage.getUrl(fileId as Id<'_storage'>);
+                    if (url) imageUrls.push(url);
+                }
+            }
+
+            // Save user message with image markers if files attached
+            const imageMarkers = imageUrls.map((url) => `[ATTACHED_IMAGE:${url}]`).join('\n');
+            const userMessageContent = imageMarkers ? `${imageMarkers}\n${args.content}` : args.content;
             await chatAgent.saveMessage(ctx, {
                 threadId: args.threadId,
-                prompt: args.content,
+                prompt: userMessageContent,
             });
 
             // Schedule video generation via FalAI queue
@@ -338,6 +352,9 @@ export const sendMessage = action({
                 threadId: args.threadId,
                 model: args.model,
                 prompt: args.content,
+                ...(imageUrls.length > 0 ? { imageUrls } : {}),
+                ...(args.duration ? { duration: args.duration } : {}),
+                ...(args.aspectRatio ? { aspectRatio: args.aspectRatio } : {}),
             });
 
             // Add placeholder assistant message

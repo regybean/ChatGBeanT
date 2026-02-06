@@ -108,7 +108,7 @@ export function ThreadItem({
             ref={setNodeRef}
             style={style}
             className={cn(
-                'flex w-full min-w-0 max-w-full items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent overflow-hidden',
+                'flex min-w-0 items-center gap-1 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent',
                 isActive && 'bg-accent',
                 isDragging && 'opacity-50 shadow-lg',
             )}
@@ -138,9 +138,9 @@ export function ThreadItem({
             </div>
             <button
                 onClick={handleClick}
-                className="min-w-0 flex-1 cursor-pointer overflow-hidden text-left"
+                className="min-w-0 flex-1 cursor-pointer truncate text-left"
             >
-                <span className="block truncate">{title}</span>
+                <span className="truncate">{title}</span>
             </button>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>

@@ -43,7 +43,7 @@ export function GroupHeader({
         <div
             ref={setNodeRef}
             className={cn(
-                'space-y-0.5 overflow-hidden rounded-md transition-all duration-200 border-2 border-transparent',
+                'space-y-0.5 rounded-md transition-all duration-200 border-2 border-transparent',
                 // When thread is over this group: purple dashed border
                 isOver && 'bg-primary/10 border-dashed border-primary',
                 // When dragging but not over this group: grey dashed border
@@ -51,17 +51,17 @@ export function GroupHeader({
                 // No hover effect when not dragging
             )}
         >
-            <div className="group flex w-full min-w-0 items-center gap-1 px-2 py-1.5">
+            <div className="group flex w-full items-center gap-1 px-2 py-1.5">
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="flex min-w-0 flex-1 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground overflow-hidden"
+                    className="flex flex-1 items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
                 >
                     {isOpen ? (
-                        <ChevronDown className="h-3 w-3 shrink-0" />
+                        <ChevronDown className="h-3 w-3" />
                     ) : (
-                        <ChevronRight className="h-3 w-3 shrink-0" />
+                        <ChevronRight className="h-3 w-3" />
                     )}
-                    <span className="truncate">{name}</span>
+                    {name}
                 </button>
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -88,7 +88,7 @@ export function GroupHeader({
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>
-            {isOpen && <div className="space-y-0.5 overflow-hidden">{children}</div>}
+            {isOpen && <div className="space-y-0.5">{children}</div>}
         </div>
     );
 }

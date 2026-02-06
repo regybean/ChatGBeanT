@@ -21,7 +21,7 @@ export function ThreadGroup({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={cn('space-y-0.5 overflow-hidden', className)}>
+    <div className={cn('space-y-0.5', className)}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex w-full items-center gap-1 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
@@ -33,7 +33,7 @@ export function ThreadGroup({
         )}
         {label}
       </button>
-      {isOpen && <div className="space-y-0.5 overflow-hidden">{children}</div>}
+      {isOpen && <div className="space-y-0.5">{children}</div>}
     </div>
   );
 }

@@ -76,20 +76,10 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
     const isStreaming = message.status === 'streaming' && !isCancelled;
     const isPending = message.status === 'pending';
 
-    // Check if this is a media message from the raw message text (not smoothed)
-    // This allows us to detect media messages even during streaming before visibleText catches up
-    const rawImageMatch = !isUser && message.text ? IMAGE_PATTERN.exec(message.text) : null;
-    const rawVideoMatch = !isUser && message.text ? VIDEO_PATTERN.exec(message.text) : null;
-    const isKnownMediaMessage = Boolean(rawImageMatch ?? rawVideoMatch);
-
     // Use smooth text for streaming messages - this creates the typewriter effect
-    // But skip smooth text for media messages to avoid showing partial pattern
-    const [smoothedText] = useSmoothText(message.text, {
-        startStreaming: isStreaming && !isKnownMediaMessage,
+    const [visibleText] = useSmoothText(message.text, {
+        startStreaming: isStreaming,
     });
-    
-    // For media messages, use the raw text directly to avoid smooth text delay
-    const visibleText = isKnownMediaMessage ? message.text : smoothedText;
 
     // Parse document references and attached images for user messages
     const { documents, attachedImages, cleanedText } = useMemo(() => {
@@ -115,15 +105,11 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
     // For non-streaming messages, only render if there's content
     const hasContent = displayText && displayText.length > 0;
 
-    // Check if this is a media message (has media ID pattern)
-    const isMediaMessage = Boolean(mediaId);
-
     // Show typing indicator when:
     // 1. Streaming with no visible content yet, OR
     // 2. Pending with no content (waiting to start streaming), OR
     // 3. Message has text but visibleText hasn't caught up yet (prevents flicker)
-    // BUT NOT for media messages - they have their own loading state
-    const showTypingIndicator = !isMediaMessage && !hasContent && (isStreaming || isPending || (message.text && message.text.length > 0));
+    const showTypingIndicator = !hasContent && (isStreaming || isPending || (message.text && message.text.length > 0));
 
     // Thinking timeout: show error if stuck thinking for 30s
     const [thinkingTimedOut, setThinkingTimedOut] = useState(false);
@@ -138,10 +124,8 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
     }, [showTypingIndicator]);
 
     // Don't render empty bubble for user messages that have no content (unless they have docs or images)
-    // For assistant messages, always render (will show thinking indicator if no content, or media loading state)
-    const shouldRender = isUser
-        ? (hasContent || documents.length > 0 || attachedImages.length > 0)
-        : (hasContent || showTypingIndicator || isMediaMessage || (isCancelled && !visibleText));
+    // For assistant messages, always render (will show thinking indicator if no content)
+    const shouldRender = isUser ? (hasContent || documents.length > 0 || attachedImages.length > 0) : (hasContent || showTypingIndicator || (isCancelled && !visibleText));
 
     if (!shouldRender) {
         return null;

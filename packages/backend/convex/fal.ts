@@ -106,6 +106,7 @@ export const submitVideoGeneration = internalAction({
     prompt: v.string(),
     duration: v.optional(v.number()),
     aspectRatio: v.optional(v.string()),
+    imageUrls: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const falKey = process.env.FAL_KEY;
@@ -125,6 +126,18 @@ export const submitVideoGeneration = internalAction({
         status: 'generating',
       });
 
+      // Build request body — include image URL for image-to-video models
+      const body: Record<string, unknown> = {
+        prompt: args.prompt,
+        ...(args.duration ? { duration: args.duration } : {}),
+        ...(args.aspectRatio ? { aspect_ratio: args.aspectRatio } : {}),
+      };
+      if (args.imageUrls && args.imageUrls.length > 0) {
+        body.image_url = args.imageUrls[0];
+      }
+
+      console.log(`[fal:video] Generating with model=${args.model}, hasImages=${!!args.imageUrls?.length}, body keys: ${Object.keys(body).join(',')}`);
+
       // Submit to FalAI queue
       const response = await fetch(`https://queue.fal.run/${args.model}`, {
         method: 'POST',
@@ -132,11 +145,7 @@ export const submitVideoGeneration = internalAction({
           'Content-Type': 'application/json',
           'Authorization': `Key ${falKey}`,
         },
-        body: JSON.stringify({
-          prompt: args.prompt,
-          ...(args.duration ? { duration: args.duration } : {}),
-          ...(args.aspectRatio ? { aspect_ratio: args.aspectRatio } : {}),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {

@@ -313,6 +313,10 @@ export function ChatInterface({
             }
 
             // Send message - don't await if we already redirected for new chats
+            const videoArgs = isVideoModel
+                ? { duration: videoConfig.duration, aspectRatio: videoConfig.aspectRatio }
+                : {};
+
             const messagePromise = sendMessage({
                 threadId: targetThreadId,
                 content,
@@ -323,6 +327,7 @@ export function ChatInterface({
                 ...(docsToSend.length > 0 && {
                     documentIds: docsToSend.map((d) => d.documentId),
                 }),
+                ...videoArgs,
             });
 
             // For existing chats, wait for message to complete
