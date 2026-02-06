@@ -12,6 +12,7 @@ export const submitImageGeneration = internalAction({
     threadId: v.string(),
     model: v.string(),
     prompt: v.string(),
+    imageUrls: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     const falKey = process.env.FAL_KEY;
@@ -30,6 +31,16 @@ export const submitImageGeneration = internalAction({
         status: 'generating',
       });
 
+      // Build request body — include image URLs for image-to-image models
+      // Send both field names since different fal models use different schemas
+      const body: Record<string, unknown> = { prompt: args.prompt };
+      if (args.imageUrls && args.imageUrls.length > 0) {
+        body.image_url = args.imageUrls[0];
+        body.image_urls = args.imageUrls;
+      }
+
+      console.log(`[fal:image] Generating with model=${args.model}, hasImages=${!!args.imageUrls?.length}, body keys: ${Object.keys(body).join(',')}`);
+
       // Use synchronous fal.run endpoint — image gen is typically fast (2-10s)
       const response = await fetch(`https://fal.run/${args.model}`, {
         method: 'POST',
@@ -37,9 +48,7 @@ export const submitImageGeneration = internalAction({
           'Content-Type': 'application/json',
           'Authorization': `Key ${falKey}`,
         },
-        body: JSON.stringify({
-          prompt: args.prompt,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
@@ -138,6 +147,8 @@ export const submitVideoGeneration = internalAction({
       const result = await response.json() as { request_id?: string; status_url?: string; response_url?: string };
       const requestId = result.request_id;
 
+      console.log('[fal:video] Queue submission response:', JSON.stringify(result));
+
       if (!requestId) {
         throw new Error('No request_id in FalAI queue response — the model may not support queued requests');
       }
@@ -149,12 +160,14 @@ export const submitVideoGeneration = internalAction({
         falRequestId: requestId,
       });
 
-      // Schedule status check
+      // Schedule status check - use response_url from queue if available
       await ctx.scheduler.runAfter(5000, internal.fal.checkVideoStatus, {
         mediaId: args.mediaId,
         model: args.model,
         requestId,
         attempts: 0,
+        ...(result.status_url ? { statusUrl: result.status_url } : {}),
+        ...(result.response_url ? { responseUrl: result.response_url } : {}),
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Video generation failed';
@@ -176,6 +189,8 @@ export const checkVideoStatus = internalAction({
     model: v.string(),
     requestId: v.string(),
     attempts: v.number(),
+    statusUrl: v.optional(v.string()),
+    responseUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const falKey = process.env.FAL_KEY;
@@ -191,9 +206,49 @@ export const checkVideoStatus = internalAction({
       return;
     }
 
+    // Helper to extract video URL from a fal response object
+    const extractVideoUrl = (data: Record<string, unknown>): string | undefined => {
+      return (data.video as { url: string } | undefined)?.url
+        ?? (data.output as { url: string } | undefined)?.url;
+    };
+
+    // Helper to download video and mark as completed
+    const completeWithVideo = async (videoUrl: string) => {
+      const videoResponse = await fetch(videoUrl);
+      if (!videoResponse.ok) {
+        throw new Error('Failed to download video');
+      }
+      const blob = await videoResponse.blob();
+      const storageId = await ctx.storage.store(blob);
+      const publicUrl = await ctx.storage.getUrl(storageId);
+
+      await ctx.runMutation(internal.media.updateMediaStatus, {
+        mediaId: args.mediaId,
+        status: 'completed',
+        url: publicUrl ?? videoUrl,
+        storageId: storageId as never,
+      });
+    };
+
+    // Helper to reschedule a status check
+    const reschedule = async (delay: number) => {
+      await ctx.scheduler.runAfter(delay, internal.fal.checkVideoStatus, {
+        mediaId: args.mediaId,
+        model: args.model,
+        requestId: args.requestId,
+        attempts: args.attempts + 1,
+        ...(args.statusUrl ? { statusUrl: args.statusUrl } : {}),
+        ...(args.responseUrl ? { responseUrl: args.responseUrl } : {}),
+      });
+    };
+
     try {
-      // Check status via queue API
-      const statusUrl = `https://queue.fal.run/${args.model}/requests/${args.requestId}/status`;
+      // Use explicit URLs from queue response if available, otherwise construct them
+      const statusUrl = args.statusUrl ?? `https://queue.fal.run/${args.model}/requests/${args.requestId}/status`;
+      const resultUrl = args.responseUrl ?? `https://queue.fal.run/${args.model}/requests/${args.requestId}`;
+
+      console.log(`[fal:video] Status check #${args.attempts} for ${args.requestId}, URL: ${statusUrl}`);
+
       const statusResponse = await fetch(statusUrl, {
         method: 'GET',
         headers: {
@@ -201,54 +256,82 @@ export const checkVideoStatus = internalAction({
         },
       });
 
+      // If status endpoint returns 405, try fetching the result directly
+      // Some models don't support the /status sub-endpoint or it becomes
+      // unavailable after completion
+      if (statusResponse.status === 405) {
+        console.log(`[fal:video] Status endpoint returned 405, trying result URL directly: ${resultUrl}`);
+        const directResponse = await fetch(resultUrl, {
+          headers: { 'Authorization': `Key ${falKey}` },
+        });
+
+        if (directResponse.ok) {
+          const result = await directResponse.json() as Record<string, unknown>;
+          console.log(`[fal:video] Direct result keys: ${Object.keys(result).join(',')}`);
+          const videoUrl = extractVideoUrl(result);
+          if (videoUrl) {
+            await completeWithVideo(videoUrl);
+            return;
+          }
+        }
+
+        // If direct fetch also fails, reschedule with backoff
+        console.log(`[fal:video] Direct fetch also failed (${directResponse.status}), rescheduling...`);
+        if (args.attempts < 30) {
+          await reschedule(Math.min(10000 * (args.attempts + 1), 30000));
+        } else {
+          await ctx.runMutation(internal.media.updateMediaStatus, {
+            mediaId: args.mediaId,
+            status: 'failed',
+            errorMessage: 'Status check returned 405 and direct result fetch failed',
+          });
+        }
+        return;
+      }
+
       if (!statusResponse.ok) {
         const errBody = await statusResponse.text();
+        console.log(`[fal:video] Status check failed (${statusResponse.status}): ${errBody}`);
         throw new Error(
           `Status check failed (${statusResponse.status}): ${errBody}`,
         );
       }
 
-      const status = await statusResponse.json() as { status: string };
+      const statusData = await statusResponse.json() as Record<string, unknown>;
+      const status = statusData.status as string;
+      console.log(`[fal:video] Status for ${args.requestId}: ${status}, keys: ${Object.keys(statusData).join(',')}`);
 
-      if (status.status === 'COMPLETED') {
-        // Get the result
-        const resultResponse = await fetch(
-          `https://queue.fal.run/${args.model}/requests/${args.requestId}`,
-          {
-            headers: {
-              'Authorization': `Key ${falKey}`,
-            },
-          },
-        );
+      // Some models include the result directly in the status response
+      const inlineVideoUrl = extractVideoUrl(statusData);
+
+      if (status === 'COMPLETED' || inlineVideoUrl) {
+        // First check if video data is inline in the status response
+        if (inlineVideoUrl) {
+          console.log(`[fal:video] Found video URL inline in status response`);
+          await completeWithVideo(inlineVideoUrl);
+          return;
+        }
+
+        // Otherwise fetch the result from the response URL
+        // Use response_url from status response if provided
+        const fetchUrl = (statusData.response_url as string) ?? resultUrl;
+        console.log(`[fal:video] Fetching result from: ${fetchUrl}`);
+        const resultResponse = await fetch(fetchUrl, {
+          headers: { 'Authorization': `Key ${falKey}` },
+        });
 
         if (!resultResponse.ok) {
           const errBody = await resultResponse.text();
           throw new Error(`Result fetch failed (${resultResponse.status}): ${errBody}`);
         }
 
-        const result = await resultResponse.json() as {
-          video?: { url: string };
-          output?: { url: string };
-        };
+        const result = await resultResponse.json() as Record<string, unknown>;
+        console.log(`[fal:video] Result keys: ${Object.keys(result).join(',')}`);
 
-        const videoUrl = result.video?.url ?? result.output?.url;
+        const videoUrl = extractVideoUrl(result);
 
         if (videoUrl) {
-          // Download and store in Convex storage
-          const videoResponse = await fetch(videoUrl);
-          if (!videoResponse.ok) {
-            throw new Error('Failed to download video');
-          }
-          const blob = await videoResponse.blob();
-          const storageId = await ctx.storage.store(blob);
-          const publicUrl = await ctx.storage.getUrl(storageId);
-
-          await ctx.runMutation(internal.media.updateMediaStatus, {
-            mediaId: args.mediaId,
-            status: 'completed',
-            url: publicUrl ?? videoUrl,
-            storageId: storageId as never,
-          });
+          await completeWithVideo(videoUrl);
         } else {
           await ctx.runMutation(internal.media.updateMediaStatus, {
             mediaId: args.mediaId,
@@ -256,7 +339,7 @@ export const checkVideoStatus = internalAction({
             errorMessage: 'No video URL in response',
           });
         }
-      } else if (status.status === 'FAILED') {
+      } else if (status === 'FAILED') {
         await ctx.runMutation(internal.media.updateMediaStatus, {
           mediaId: args.mediaId,
           status: 'failed',
@@ -264,24 +347,16 @@ export const checkVideoStatus = internalAction({
         });
       } else {
         // Still in progress or in queue — reschedule
-        await ctx.scheduler.runAfter(5000, internal.fal.checkVideoStatus, {
-          mediaId: args.mediaId,
-          model: args.model,
-          requestId: args.requestId,
-          attempts: args.attempts + 1,
-        });
+        console.log(`[fal:video] Request ${args.requestId} still ${status}, rescheduling...`);
+        await reschedule(5000);
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Status check failed';
+      console.log(`[fal:video] Error checking status for ${args.requestId}: ${errorMsg}`);
       // Retry on transient errors, with increasing backoff
-      if (args.attempts < 5) {
+      if (args.attempts < 10) {
         const backoff = Math.min(10000 * (args.attempts + 1), 30000);
-        await ctx.scheduler.runAfter(backoff, internal.fal.checkVideoStatus, {
-          mediaId: args.mediaId,
-          model: args.model,
-          requestId: args.requestId,
-          attempts: args.attempts + 1,
-        });
+        await reschedule(backoff);
       } else {
         await ctx.runMutation(internal.media.updateMediaStatus, {
           mediaId: args.mediaId,

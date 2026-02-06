@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useMutation } from 'convex/react';
-import { Download, Copy, Bookmark, Loader2, AlertCircle } from 'lucide-react';
+import { Download, Copy, Check, Bookmark, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -23,9 +23,10 @@ interface GeneratedImageMessageProps {
 
 export function GeneratedImageMessage({ media }: GeneratedImageMessageProps) {
     const [hovering, setHovering] = useState(false);
+    const [copied, setCopied] = useState(false);
     const saveToDocuments = useMutation(api.media.saveMediaToDocuments);
 
-    const handleCopy = async () => {
+    const handleCopy = useCallback(async () => {
         if (!media.url) return;
         try {
             const response = await fetch(media.url);
@@ -33,13 +34,15 @@ export function GeneratedImageMessage({ media }: GeneratedImageMessageProps) {
             await navigator.clipboard.write([
                 new ClipboardItem({ [blob.type]: blob }),
             ]);
-            toast.success('Image copied to clipboard');
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
         } catch {
             // Fallback: copy URL
             await navigator.clipboard.writeText(media.url);
-            toast.success('Image URL copied to clipboard');
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
         }
-    };
+    }, [media.url]);
 
     const handleDownload = () => {
         if (!media.url) return;
@@ -111,7 +114,7 @@ export function GeneratedImageMessage({ media }: GeneratedImageMessageProps) {
                         onClick={handleCopy}
                         title="Copy image"
                     >
-                        <Copy className="h-4 w-4" />
+                        {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                     </Button>
                     <Button
                         variant="secondary"

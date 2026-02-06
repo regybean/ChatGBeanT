@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useQuery } from 'convex/react';
 import { ChevronsUpDown, Check, Search, Clock, Image, Video, MessageSquare } from 'lucide-react';
 
@@ -13,7 +13,6 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@chatgbeant/ui/popover';
-import { ScrollArea } from '@chatgbeant/ui/scroll-area';
 import { cn } from '@chatgbeant/ui/cn';
 
 interface ModelSelectorProps {
@@ -31,6 +30,19 @@ export function ModelSelector({
 }: ModelSelectorProps) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'text' | 'image' | 'video'>('all');
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+    // Scroll to selected model when popover opens
+    useEffect(() => {
+        if (open && value && scrollAreaRef.current) {
+            const timer = setTimeout(() => {
+                const selected = scrollAreaRef.current?.querySelector(`[data-model-id="${value}"]`) as HTMLElement | null;
+                selected?.scrollIntoView({ block: 'center' });
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [open, value]);
 
     const featuredModels = useQuery(api.openrouter.getFeaturedModels);
     const allModels = useQuery(
@@ -70,8 +82,17 @@ export function ModelSelector({
         return featuredModels ?? [];
     }, [search, allModels, featuredModels, cachedSearchResults]);
 
-    // Show all models; premium ones are grayed out for basic users
-    const filteredModels = displayModels;
+    // Apply type filter, then show all models; premium ones are grayed out for basic users
+    const filteredModels = useMemo(() => {
+        if (typeFilter === 'all') return displayModels;
+        return displayModels.filter((m) => {
+            const out = (m as { outputModalities?: string[] }).outputModalities ?? [];
+            if (typeFilter === 'text') return !out.includes('image') && !out.includes('video');
+            if (typeFilter === 'image') return out.includes('image');
+            if (typeFilter === 'video') return out.includes('video');
+            return true;
+        });
+    }, [displayModels, typeFilter]);
 
     // Categorize models by output modality
     const { textModels, imageModels, videoModels } = useMemo(() => {
@@ -113,6 +134,7 @@ export function ModelSelector({
         onChange(openRouterId);
         setOpen(false);
         setSearch('');
+        setTypeFilter('all');
     };
 
     const isModelDisabled = (model: NonNullable<typeof selectedModel>) => {
@@ -127,6 +149,7 @@ export function ModelSelector({
         return (
             <button
                 key={model._id}
+                data-model-id={model.openRouterId}
                 onClick={() => !disabled && handleSelect(model.openRouterId)}
                 className={cn(
                     'flex w-full items-center gap-2 rounded-sm px-2 py-2 text-sm',
@@ -190,7 +213,7 @@ export function ModelSelector({
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[420px] overflow-hidden p-0" align="start">
+            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[420px] overflow-hidden p-0" align="start" side="top" sideOffset={8}>
                 <div className="flex items-center border-b px-3">
                     <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
                     <input
@@ -201,7 +224,26 @@ export function ModelSelector({
                         className="flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground"
                     />
                 </div>
-                <ScrollArea className="max-h-[450px]">
+                <div className="flex gap-1 border-b px-2 py-1.5">
+                    {(['all', 'text', 'image', 'video'] as const).map((filter) => (
+                        <button
+                            key={filter}
+                            onClick={() => setTypeFilter(filter)}
+                            className={cn(
+                                'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                                typeFilter === filter
+                                    ? 'bg-accent text-accent-foreground'
+                                    : 'text-muted-foreground hover:bg-accent/50 hover:text-accent-foreground',
+                            )}
+                        >
+                            {filter === 'all' && 'All'}
+                            {filter === 'text' && <><MessageSquare className="h-3 w-3" />Text</>}
+                            {filter === 'image' && <><Image className="h-3 w-3" />Image</>}
+                            {filter === 'video' && <><Video className="h-3 w-3" />Video</>}
+                        </button>
+                    ))}
+                </div>
+                <div className="max-h-[min(450px,50vh)] overflow-y-auto" ref={scrollAreaRef}>
                     <div className="p-1">
                         {!search && recentModels.length > 0 && (
                             <>
@@ -272,7 +314,7 @@ export function ModelSelector({
                             </div>
                         )}
                     </div>
-                </ScrollArea>
+                </div>
             </PopoverContent>
         </Popover>
     );

@@ -123,7 +123,7 @@ export function DocumentsModal({ open, onClose, onAttachDocument }: DocumentsMod
                                             'group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent cursor-pointer',
                                             selectedDocId === doc._id && 'bg-accent',
                                         )}
-                                        onClick={() => setSelectedDocId(doc._id)}
+                                        onClick={() => { setPreviewMedia(null); setSelectedDocId(doc._id); }}
                                     >
                                         <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                                         {editingTitle === doc._id ? (

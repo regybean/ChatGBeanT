@@ -68,7 +68,7 @@ export default function ChatLayout({
             <SidebarProvider>
                 <Sidebar />
                 <main className="flex flex-1 flex-col overflow-hidden">
-                    <div className="flex items-center gap-2 border-b px-2 py-1">
+                    <div className="relative z-20 flex items-center gap-2 border-b bg-background px-2 py-1">
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <SidebarTrigger className="h-9 w-9" />

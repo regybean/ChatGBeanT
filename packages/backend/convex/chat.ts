@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 import { paginationOptsValidator } from 'convex/server';
 import { action, mutation, query, internalMutation, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
+import type { Id } from './_generated/dataModel';
 import { listUIMessages, syncStreams, vStreamArgs } from '@convex-dev/agent';
 import { chatAgent, createAgentWithModel } from './agent';
 import { rateLimiter } from './rateLimiterConfig';
@@ -271,9 +272,21 @@ export const sendMessage = action({
                 provider: 'fal',
             });
 
+            // Resolve attached image URLs for image-to-image models
+            const imageUrls: string[] = [];
+            if (args.fileIds && args.fileIds.length > 0) {
+                for (const fileId of args.fileIds) {
+                    const url = await ctx.storage.getUrl(fileId as Id<'_storage'>);
+                    if (url) imageUrls.push(url);
+                }
+            }
+
+            // Save user message with image markers if files attached
+            const imageMarkers = imageUrls.map((url) => `[ATTACHED_IMAGE:${url}]`).join('\n');
+            const userMessageContent = imageMarkers ? `${imageMarkers}\n${args.content}` : args.content;
             await chatAgent.saveMessage(ctx, {
                 threadId: args.threadId,
-                prompt: args.content,
+                prompt: userMessageContent,
             });
 
             // Schedule image generation via FalAI
@@ -282,6 +295,7 @@ export const sendMessage = action({
                 threadId: args.threadId,
                 model: args.model,
                 prompt: args.content,
+                ...(imageUrls.length > 0 ? { imageUrls } : {}),
             });
 
             // Add placeholder assistant message with media reference
@@ -342,6 +356,7 @@ export const sendMessage = action({
 
         // ─── OpenRouter Image generation path ─────────────────────
         if (isImageModel) {
+            console.log(`[openrouter:image] Starting image generation with model=${args.model}`);
             if (user.tier !== 'pro') {
                 throw new Error('Image generation requires a Pro subscription');
             }
@@ -369,7 +384,10 @@ export const sendMessage = action({
                     status: 'generating',
                 });
 
+                console.log(`[openrouter:image] Calling OpenRouter API for model=${args.model}, hasApiKey=${!!process.env.OPENROUTER_API_KEY}`);
+
                 // Call OpenRouter API for image generation
+                // Include modalities param so models like gpt-5-image know to generate images
                 const apiResponse = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                     method: 'POST',
                     headers: {
@@ -379,11 +397,15 @@ export const sendMessage = action({
                     body: JSON.stringify({
                         model: args.model,
                         messages: [{ role: 'user', content: args.content }],
+                        modalities: ['text', 'image'],
                     }),
                 });
 
+                console.log(`[openrouter:image] Response status: ${apiResponse.status}`);
+
                 if (!apiResponse.ok) {
                     const errBody = await apiResponse.text();
+                    console.log(`[openrouter:image] Error response: ${errBody}`);
                     throw new Error(`${apiResponse.status}: ${errBody || apiResponse.statusText}`);
                 }
 
@@ -394,14 +416,29 @@ export const sendMessage = action({
                                 type: string;
                                 image_url?: { url: string };
                             }>;
+                            // OpenRouter returns images in a separate array
+                            images?: Array<{
+                                type: string;
+                                image_url?: { url: string };
+                            }>;
                         };
                     }>;
                 };
 
+                console.log(`[openrouter:image] Response has choices: ${!!result.choices?.length}, message keys: ${Object.keys(result.choices?.[0]?.message ?? {}).join(',')}`);
+
                 // Extract image URL from response
                 let imageUrl: string | undefined;
-                const content = result.choices?.[0]?.message?.content;
-                if (typeof content === 'string') {
+                const message = result.choices?.[0]?.message;
+                const content = message?.content;
+
+                // 1. Check the images array (OpenRouter/OpenAI image models)
+                if (message?.images && message.images.length > 0) {
+                    imageUrl = message.images[0]?.image_url?.url;
+                }
+
+                // 2. Fall back to checking content
+                if (!imageUrl && typeof content === 'string') {
                     // Check for markdown image or URL in text
                     const urlMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/) ??
                         content.match(/(https?:\/\/[^\s]+\.(png|jpg|jpeg|webp|gif))/i);
@@ -409,10 +446,12 @@ export const sendMessage = action({
                     if (!imageUrl && content.startsWith('data:image/')) {
                         imageUrl = content;
                     }
-                } else if (Array.isArray(content)) {
+                } else if (!imageUrl && Array.isArray(content)) {
                     const imageBlock = content.find((c) => c.type === 'image_url');
                     imageUrl = imageBlock?.image_url?.url;
                 }
+
+                console.log(`[openrouter:image] Extracted imageUrl: ${imageUrl ? `${imageUrl.substring(0, 80)}...` : 'none'}`);
 
                 if (imageUrl) {
                     let storageId: string | undefined;
@@ -549,14 +588,21 @@ export const sendMessage = action({
         // Build message content - support file attachments
         if (args.fileIds && args.fileIds.length > 0) {
             const parts: Array<{ type: string; text?: string; image?: string; mimeType?: string }> = [];
-            parts.push({ type: 'text', text: messageContent });
 
+            // Resolve file URLs and embed markers in message text for display
+            const imageUrls: string[] = [];
             for (const fileId of args.fileIds) {
                 const url = await ctx.storage.getUrl(fileId as never);
                 if (url) {
+                    imageUrls.push(url);
                     parts.push({ type: 'image', image: url });
                 }
             }
+
+            // Prepend image markers so message-bubble can render them
+            const imageMarkers = imageUrls.map((url) => `[ATTACHED_IMAGE:${url}]`).join('\n');
+            const textWithMarkers = imageMarkers ? `${imageMarkers}\n${messageContent}` : messageContent;
+            parts.unshift({ type: 'text', text: textWithMarkers });
 
             await agent.streamText(
                 ctx,

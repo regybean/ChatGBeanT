@@ -226,8 +226,8 @@ export function Sidebar() {
 
                 <SidebarContent>
                     <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-                        <ScrollArea className="flex-1 px-2">
-                            <div className="space-y-2 py-2">
+                        <ScrollArea className="flex-1 overflow-hidden px-2">
+                            <div className="space-y-2 overflow-hidden py-2">
                                 {searchTerm && searchResults && searchResults.length > 0 && (
                                     <ThreadGroup label={`Results (${searchResults.length})`}>
                                         {searchResults.map((t) => renderThread(t))}

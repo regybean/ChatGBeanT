@@ -115,6 +115,7 @@ export function ChatInterface({
     const scrollRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const prevMessageCountRef = useRef(0);
+    const prevThreadIdRef = useRef(threadId);
     const cancelledKeysRef = useRef<Set<string>>(new Set());
     const fileUploadRef = useRef<FileUploadZoneHandle>(null);
     const [videoConfig, setVideoConfig] = useState<VideoConfig>({
@@ -212,15 +213,17 @@ export function ChatInterface({
     // Draft key for localStorage
     const draftKey = `${DRAFT_KEY_PREFIX}${threadId ?? 'new'}`;
 
-    // Load draft from localStorage
+    // Load draft from localStorage when thread changes, then refocus textarea
     useEffect(() => {
         const draft = localStorage.getItem(draftKey);
-        if (draft) {
-            setInput(draft);
-        }
+        setInput(draft ?? '');
+        // Refocus textarea after state settles to avoid losing focus on thread switch
+        requestAnimationFrame(() => {
+            textareaRef.current?.focus();
+        });
     }, [draftKey]);
 
-    // Save draft to localStorage (debounced to avoid lag)
+    // Save draft to localStorage (debounced)
     useEffect(() => {
         const timer = setTimeout(() => {
             if (input) {
@@ -236,27 +239,34 @@ export function ChatInterface({
     const getViewport = () =>
         scrollRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement | null;
 
-    // Scroll to bottom only when new messages arrive or user is near bottom
+    // Unified scroll management: scroll to bottom on new messages, thread change, or messages loading
     useEffect(() => {
         const vp = getViewport();
         if (!vp) return;
+
+        const threadChanged = threadId !== prevThreadIdRef.current;
         const messageCountChanged = messages.length !== prevMessageCountRef.current;
         const isNearBottom = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 100;
+
+        if (threadChanged) {
+            prevThreadIdRef.current = threadId;
+            prevMessageCountRef.current = messages.length;
+            // On thread change, always scroll to bottom after messages render
+            const timer = setTimeout(() => {
+                vp.scrollTop = vp.scrollHeight;
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+
         if (messageCountChanged || isNearBottom) {
-            vp.scrollTop = vp.scrollHeight;
+            const timer = setTimeout(() => {
+                vp.scrollTop = vp.scrollHeight;
+            }, 50);
+            prevMessageCountRef.current = messages.length;
+            return () => clearTimeout(timer);
         }
         prevMessageCountRef.current = messages.length;
-    }, [messages]);
-
-    // Scroll to bottom when opening a thread
-    useEffect(() => {
-        if (!threadId) return;
-        const timer = setTimeout(() => {
-            const vp = getViewport();
-            if (vp) vp.scrollTop = vp.scrollHeight;
-        }, 150);
-        return () => clearTimeout(timer);
-    }, [threadId]);
+    }, [messages, threadId, messagesStatus]);
 
     const handleSubmit = async (e: { preventDefault: () => void }) => {
         e.preventDefault();
@@ -417,6 +427,19 @@ export function ChatInterface({
 
             <div className="border-t p-4">
                 <form onSubmit={handleSubmit} className="mx-auto max-w-3xl">
+                    {(() => {
+                        const inputMods = selectedModelInfo?.inputModalities ?? ['text'];
+                        const outputMods = selectedModelInfo?.outputModalities ?? ['text'];
+                        const inputLabel = inputMods.includes('image') ? 'Text+Image' : 'Text';
+                        const outputLabel = outputMods.includes('video') ? 'Video' : outputMods.includes('image') ? 'Image' : 'Text';
+                        const modeLabel = `${inputLabel} → ${outputLabel}`;
+                        const isSpecial = modeLabel !== 'Text → Text';
+                        return (
+                            <div className={`h-5 mb-1 text-xs text-muted-foreground transition-opacity ${isSpecial ? 'opacity-100' : 'opacity-0'}`}>
+                                {isSpecial ? modeLabel : '\u00A0'}
+                            </div>
+                        );
+                    })()}
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                         <ModelSelector
                             value={selectedModel}

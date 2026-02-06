@@ -34,6 +34,22 @@ function parseDocumentReferences(text: string): { documents: string[]; cleanedTe
     return { documents, cleanedText };
 }
 
+// Parse attached image URLs from message text
+function parseAttachedImages(text: string): { imageUrls: string[]; cleanedText: string } {
+    const imagePattern = /\[ATTACHED_IMAGE:(https?:\/\/[^\]]+)\]/g;
+    const imageUrls: string[] = [];
+    let match;
+
+    while ((match = imagePattern.exec(text)) !== null) {
+        if (match[1]) {
+            imageUrls.push(match[1]);
+        }
+    }
+
+    const cleanedText = text.replaceAll(/\[ATTACHED_IMAGE:[^\]]+\]\n?/g, '').trim();
+    return { imageUrls, cleanedText };
+}
+
 interface MediaRecord {
     _id: Id<'generatedMedia'>;
     url?: string;
@@ -60,17 +76,29 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
     const isStreaming = message.status === 'streaming' && !isCancelled;
     const isPending = message.status === 'pending';
 
-    // Use smooth text for streaming messages - this creates the typewriter effect
-    const [visibleText] = useSmoothText(message.text, {
-        startStreaming: isStreaming,
-    });
+    // Check if this is a media message from the raw message text (not smoothed)
+    // This allows us to detect media messages even during streaming before visibleText catches up
+    const rawImageMatch = !isUser && message.text ? IMAGE_PATTERN.exec(message.text) : null;
+    const rawVideoMatch = !isUser && message.text ? VIDEO_PATTERN.exec(message.text) : null;
+    const isKnownMediaMessage = Boolean(rawImageMatch ?? rawVideoMatch);
 
-    // Parse document references for user messages
-    const { documents, cleanedText } = useMemo(() => {
+    // Use smooth text for streaming messages - this creates the typewriter effect
+    // But skip smooth text for media messages to avoid showing partial pattern
+    const [smoothedText] = useSmoothText(message.text, {
+        startStreaming: isStreaming && !isKnownMediaMessage,
+    });
+    
+    // For media messages, use the raw text directly to avoid smooth text delay
+    const visibleText = isKnownMediaMessage ? message.text : smoothedText;
+
+    // Parse document references and attached images for user messages
+    const { documents, attachedImages, cleanedText } = useMemo(() => {
         if (isUser && visibleText) {
-            return parseDocumentReferences(visibleText);
+            const { imageUrls, cleanedText: afterImages } = parseAttachedImages(visibleText);
+            const { documents, cleanedText: afterDocs } = parseDocumentReferences(afterImages);
+            return { documents, attachedImages: imageUrls, cleanedText: afterDocs };
         }
-        return { documents: [], cleanedText: visibleText };
+        return { documents: [], attachedImages: [] as string[], cleanedText: visibleText };
     }, [isUser, visibleText]);
 
     // Use cleaned text for display
@@ -87,11 +115,15 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
     // For non-streaming messages, only render if there's content
     const hasContent = displayText && displayText.length > 0;
 
+    // Check if this is a media message (has media ID pattern)
+    const isMediaMessage = Boolean(mediaId);
+
     // Show typing indicator when:
     // 1. Streaming with no visible content yet, OR
     // 2. Pending with no content (waiting to start streaming), OR
     // 3. Message has text but visibleText hasn't caught up yet (prevents flicker)
-    const showTypingIndicator = !hasContent && (isStreaming || isPending || (message.text && message.text.length > 0));
+    // BUT NOT for media messages - they have their own loading state
+    const showTypingIndicator = !isMediaMessage && !hasContent && (isStreaming || isPending || (message.text && message.text.length > 0));
 
     // Thinking timeout: show error if stuck thinking for 30s
     const [thinkingTimedOut, setThinkingTimedOut] = useState(false);
@@ -105,9 +137,11 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
         return () => clearTimeout(timer);
     }, [showTypingIndicator]);
 
-    // Don't render empty bubble for user messages that have no content (unless they have docs)
-    // For assistant messages, always render (will show thinking indicator if no content)
-    const shouldRender = isUser ? (hasContent || documents.length > 0) : (hasContent || showTypingIndicator || (isCancelled && !visibleText));
+    // Don't render empty bubble for user messages that have no content (unless they have docs or images)
+    // For assistant messages, always render (will show thinking indicator if no content, or media loading state)
+    const shouldRender = isUser
+        ? (hasContent || documents.length > 0 || attachedImages.length > 0)
+        : (hasContent || showTypingIndicator || isMediaMessage || (isCancelled && !visibleText));
 
     if (!shouldRender) {
         return null;
@@ -134,6 +168,20 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
                 </AvatarFallback>
             </Avatar>
             <div className="flex max-w-[90%] md:max-w-[80%] flex-col gap-1">
+                {/* Attached images for user messages */}
+                {isUser && attachedImages.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 justify-end">
+                        {attachedImages.map((url, idx) => (
+                            <img
+                                key={idx}
+                                src={url}
+                                alt="Attached image"
+                                className="max-h-32 max-w-[200px] rounded-md object-cover"
+                                loading="lazy"
+                            />
+                        ))}
+                    </div>
+                )}
                 {/* Document reference chips for user messages */}
                 {isUser && documents.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 justify-end">
@@ -206,8 +254,8 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
                     )}
 
                 </div>
-                {/* Copy button + model info - visible on hover */}
-                {hasContent && !showTypingIndicator && (
+                {/* Copy button + model info - visible on hover, only when message is complete */}
+                {hasContent && !showTypingIndicator && !isStreaming && !isPending && (
                     <div
                         className={cn(
                             'flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100',

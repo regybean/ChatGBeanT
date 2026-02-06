@@ -37,7 +37,7 @@ export function DocumentEditor({ documentId }: DocumentEditorProps) {
     }
 
     return (
-        <div className="h-full overflow-auto">
+        <div className="h-full overflow-auto px-4">
             <BlockNoteView
                 editor={editor}
                 onChange={handleChange}
