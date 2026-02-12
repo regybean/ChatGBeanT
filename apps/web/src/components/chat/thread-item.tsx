@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { MoreHorizontal, Pencil, Trash2, FolderInput, FolderMinus, GripVertical } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2, FolderInput, FolderMinus, GripVertical, MessageSquarePlus } from 'lucide-react';
 import { useDraggable } from '@dnd-kit/core';
 import type { Id } from '@chatgbeant/backend/convex/_generated/dataModel';
 
@@ -35,6 +35,7 @@ interface ThreadItemProps {
     onDelete: (threadId: string) => void;
     onMoveToGroup?: (threadId: string, groupId?: Id<'threadGroups'>) => void;
     onHover?: (threadId: string | null) => void;
+    onAttachToChat?: (threadId: string, title: string) => void;
 }
 
 export function ThreadItem({
@@ -46,6 +47,7 @@ export function ThreadItem({
     onDelete,
     onMoveToGroup,
     onHover,
+    onAttachToChat,
 }: ThreadItemProps) {
     const pathname = usePathname();
     const router = useRouter();
@@ -156,6 +158,12 @@ export function ThreadItem({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
+                    {onAttachToChat && (
+                        <DropdownMenuItem onClick={() => onAttachToChat(threadId, title)}>
+                            <MessageSquarePlus className="mr-2 h-4 w-4" />
+                            Attach to Chat
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => onRename(threadId, title)}>
                         <Pencil className="mr-2 h-4 w-4" />
                         Rename

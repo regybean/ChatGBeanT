@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useQuery } from 'convex/react';
 import { ChevronsUpDown, Check, Search, Clock, Image, Video, MessageSquare } from 'lucide-react';
 
@@ -19,6 +19,7 @@ interface ModelSelectorProps {
     value: string;
     onChange: (value: string) => void;
     userTier: 'basic' | 'pro';
+    hasByok?: boolean;
     disabled?: boolean;
 }
 
@@ -26,12 +27,23 @@ export function ModelSelector({
     value,
     onChange,
     userTier,
+    hasByok = false,
     disabled,
 }: ModelSelectorProps) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState<'all' | 'text' | 'image' | 'video'>('all');
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const lastValidResultsRef = useRef<NonNullable<typeof allModels>>([]);
+
+    // Debounce search input (300ms)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [search]);
 
     // Scroll to selected model when popover opens
     useEffect(() => {
@@ -47,40 +59,25 @@ export function ModelSelector({
     const featuredModels = useQuery(api.openrouter.getFeaturedModels);
     const allModels = useQuery(
         api.openrouter.listModels,
-        search ? { searchTerm: search } : {},
+        debouncedSearch ? { searchTerm: debouncedSearch } : {},
     );
     const recentModelIds = useQuery(api.settings.getRecentModels);
 
-    // Track last valid search results to prevent flicker while loading new search
-    const [cachedSearchResults, setCachedSearchResults] = useState<NonNullable<typeof allModels>>([]);
-    const [lastCachedSearch, setLastCachedSearch] = useState('');
-    const [isSearching, setIsSearching] = useState(false);
-
-    // Update cache when we get new valid results for a search
-    if (search && allModels !== undefined && search !== lastCachedSearch) {
-        if (allModels.length > 0) setCachedSearchResults(allModels);
-        setLastCachedSearch(search);
-        setIsSearching(false);
+    // Update ref cache when we get valid results
+    if (allModels !== undefined && allModels.length > 0) {
+        lastValidResultsRef.current = allModels;
     }
 
-    // Track when search changes to show loading state
-    if (search && search !== lastCachedSearch && !isSearching) {
-        setIsSearching(true);
-    }
+    const isSearching = !!debouncedSearch && allModels === undefined;
 
     // Use featured models when no search, all models when searching
     // When searching and loading, show cached previous results to avoid flicker
     const displayModels = useMemo(() => {
-        if (search) {
-            // If we have results for this search, use them (even if empty)
-            if (allModels !== undefined) return allModels;
-            // If loading, show cached results from previous search as fallback
-            if (cachedSearchResults.length > 0) return cachedSearchResults;
-            // Still loading with no cache, show featured as fallback
-            return featuredModels ?? [];
+        if (debouncedSearch) {
+            return allModels ?? lastValidResultsRef.current;
         }
         return featuredModels ?? [];
-    }, [search, allModels, featuredModels, cachedSearchResults]);
+    }, [debouncedSearch, allModels, featuredModels]);
 
     // Apply type filter, then show all models; premium ones are grayed out for basic users
     const filteredModels = useMemo(() => {
@@ -137,10 +134,12 @@ export function ModelSelector({
         setTypeFilter('all');
     };
 
+    const canAccessPro = userTier === 'pro' || hasByok;
+
     const isModelDisabled = (model: NonNullable<typeof selectedModel>) => {
-        if (userTier !== 'pro' && model.tier === 'premium') return true;
+        if (!canAccessPro && model.tier === 'premium') return true;
         const out = (model as { outputModalities?: string[] }).outputModalities ?? [];
-        if (userTier !== 'pro' && (out.includes('image') || out.includes('video'))) return true;
+        if (!canAccessPro && (out.includes('image') || out.includes('video'))) return true;
         return false;
     };
 
@@ -158,7 +157,7 @@ export function ModelSelector({
                         : 'hover:bg-accent',
                     value === model.openRouterId && 'bg-accent',
                 )}
-                title={disabled ? 'Upgrade to Pro to use this model' : undefined}
+                title={disabled ? 'This model requires Pro or your own API key. Visit Settings to add your key.' : undefined}
             >
                 <ProviderIcon
                     provider={model.provider}
@@ -283,7 +282,7 @@ export function ModelSelector({
                                         <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground">
                                             <Image className="h-3 w-3" />
                                             Image Models
-                                            {userTier !== 'pro' && <Badge variant="default" className="ml-1 text-[9px] px-1 py-0">Pro</Badge>}
+                                            {!canAccessPro && <Badge variant="default" className="ml-1 text-[9px] px-1 py-0">Pro</Badge>}
                                         </div>
                                         {imageModels.map((m) => renderModelItem(m))}
                                     </>
@@ -294,7 +293,7 @@ export function ModelSelector({
                                         <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground">
                                             <Video className="h-3 w-3" />
                                             Video Models
-                                            {userTier !== 'pro' && <Badge variant="default" className="ml-1 text-[9px] px-1 py-0">Pro</Badge>}
+                                            {!canAccessPro && <Badge variant="default" className="ml-1 text-[9px] px-1 py-0">Pro</Badge>}
                                         </div>
                                         {videoModels.map((m) => renderModelItem(m))}
                                     </>

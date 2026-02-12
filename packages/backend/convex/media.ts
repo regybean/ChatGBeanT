@@ -120,6 +120,35 @@ export const getMediaForUser = query({
 });
 
 /**
+ * Rename a media record
+ */
+export const renameMedia = mutation({
+  args: {
+    mediaId: v.id('generatedMedia'),
+    title: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error('Not authenticated');
+
+    const user = await ctx.db
+      .query('users')
+      .withIndex('by_clerk_id', (q) => q.eq('clerkId', identity.subject))
+      .first();
+
+    if (!user) throw new Error('User not found');
+
+    const media = await ctx.db.get(args.mediaId);
+    if (!media || media.userId !== user._id) throw new Error('Media not found');
+
+    await ctx.db.patch(args.mediaId, {
+      title: args.title.trim(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
  * Save media to documents section
  */
 export const saveMediaToDocuments = mutation({

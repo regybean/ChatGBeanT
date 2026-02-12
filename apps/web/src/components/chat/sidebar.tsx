@@ -57,7 +57,7 @@ export function Sidebar() {
     const { user } = useUser();
     const currentUser = useQuery(api.users.getCurrent);
 
-    const { isOpen: documentsModalOpen, openModal: openDocumentsModal, closeModal: closeDocumentsModal, onAttachDocument } = useDocumentsModal();
+    const { isOpen: documentsModalOpen, openModal: openDocumentsModal, closeModal: closeDocumentsModal, onAttachDocument, onAttachMedia, onAttachThread } = useDocumentsModal();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
@@ -69,10 +69,8 @@ export function Sidebar() {
         title: string;
     } | null>(null);
 
-    const groupedThreads = useQuery(
-        api.chat.listThreadsGrouped,
-        searchTerm ? 'skip' : {},
-    );
+    // Always keep groupedThreads subscribed to prevent blank state
+    const groupedThreads = useQuery(api.chat.listThreadsGrouped, {});
     const searchResults = useQuery(
         api.chat.searchThreads,
         searchTerm ? { searchTerm } : 'skip',
@@ -177,6 +175,13 @@ export function Sidebar() {
 
     const groupList = groups.map((g) => ({ _id: g._id, name: g.name }));
 
+    const handleAttachToChat = useCallback(
+        (threadId: string, title: string) => {
+            onAttachThread?.(threadId, title);
+        },
+        [onAttachThread],
+    );
+
     const renderThread = (thread: {
         threadId: string;
         title?: string;
@@ -194,6 +199,7 @@ export function Sidebar() {
             onDelete={handleDelete}
             onMoveToGroup={handleMoveToGroup}
             onHover={setHoveredThreadId}
+            onAttachToChat={onAttachThread ? handleAttachToChat : undefined}
         />
     );
 
@@ -233,60 +239,65 @@ export function Sidebar() {
                             <SidebarGroup>
                                 <SidebarGroupContent>
                                     <SidebarMenu>
-                                {searchTerm && searchResults && searchResults.length > 0 && (
-                                    <ThreadGroup label={`Results (${searchResults.length})`}>
-                                        {searchResults.map((t) => renderThread(t))}
-                                    </ThreadGroup>
-                                )}
-                                {searchTerm && searchResults?.length === 0 && (
-                                    <p className="px-3 py-2 text-xs text-muted-foreground">
-                                        No threads found
-                                    </p>
-                                )}
-                                {!searchTerm && (
-                                    <>
-                                        {/* User-created groups */}
-                                        {groupedThreads?.groups.map((g) => (
-                                            <GroupHeader
-                                                key={g._id}
-                                                groupId={g._id}
-                                                name={g.name}
-                                                onRename={handleGroupRenameClick}
-                                                onDelete={handleDeleteGroup}
-                                                isDraggingThread={isDraggingThread}
-                                            >
-                                                {g.threads.map((t) => renderThread(t))}
-                                            </GroupHeader>
-                                        ))}
+                                        {searchTerm && searchResults !== undefined && searchResults.length > 0 && (
+                                            <ThreadGroup label={`Results (${searchResults.length})`}>
+                                                {searchResults.map((t) => renderThread(t))}
+                                            </ThreadGroup>
+                                        )}
+                                        {searchTerm && searchResults !== undefined && searchResults.length === 0 && (
+                                            <p className="px-3 py-2 text-xs text-muted-foreground">
+                                                No threads found
+                                            </p>
+                                        )}
+                                        {searchTerm && searchResults === undefined && (
+                                            <p className="px-3 py-2 text-xs text-muted-foreground animate-pulse">
+                                                Searching...
+                                            </p>
+                                        )}
+                                        {!searchTerm && (
+                                            <>
+                                                {/* User-created groups */}
+                                                {groupedThreads?.groups.map((g) => (
+                                                    <GroupHeader
+                                                        key={g._id}
+                                                        groupId={g._id}
+                                                        name={g.name}
+                                                        onRename={handleGroupRenameClick}
+                                                        onDelete={handleDeleteGroup}
+                                                        isDraggingThread={isDraggingThread}
+                                                    >
+                                                        {g.threads.map((t) => renderThread(t))}
+                                                    </GroupHeader>
+                                                ))}
 
-                                        {/* Date-based groups */}
-                                        {groupedThreads?.pinned && groupedThreads.pinned.length > 0 && (
-                                            <ThreadGroup label="Pinned">
-                                                {groupedThreads.pinned.map((t) => renderThread(t))}
-                                            </ThreadGroup>
+                                                {/* Date-based groups */}
+                                                {groupedThreads?.pinned && groupedThreads.pinned.length > 0 && (
+                                                    <ThreadGroup label="Pinned">
+                                                        {groupedThreads.pinned.map((t) => renderThread(t))}
+                                                    </ThreadGroup>
+                                                )}
+                                                {groupedThreads?.today && groupedThreads.today.length > 0 && (
+                                                    <ThreadGroup label="Today">
+                                                        {groupedThreads.today.map((t) => renderThread(t))}
+                                                    </ThreadGroup>
+                                                )}
+                                                {groupedThreads?.last7Days && groupedThreads.last7Days.length > 0 && (
+                                                    <ThreadGroup label="Last 7 Days">
+                                                        {groupedThreads.last7Days.map((t) => renderThread(t))}
+                                                    </ThreadGroup>
+                                                )}
+                                                {groupedThreads?.last30Days && groupedThreads.last30Days.length > 0 && (
+                                                    <ThreadGroup label="Last 30 Days">
+                                                        {groupedThreads.last30Days.map((t) => renderThread(t))}
+                                                    </ThreadGroup>
+                                                )}
+                                                {groupedThreads?.older && groupedThreads.older.length > 0 && (
+                                                    <ThreadGroup label="Older" defaultOpen={false}>
+                                                        {groupedThreads.older.map((t) => renderThread(t))}
+                                                    </ThreadGroup>
+                                                )}
+                                            </>
                                         )}
-                                        {groupedThreads?.today && groupedThreads.today.length > 0 && (
-                                            <ThreadGroup label="Today">
-                                                {groupedThreads.today.map((t) => renderThread(t))}
-                                            </ThreadGroup>
-                                        )}
-                                        {groupedThreads?.last7Days && groupedThreads.last7Days.length > 0 && (
-                                            <ThreadGroup label="Last 7 Days">
-                                                {groupedThreads.last7Days.map((t) => renderThread(t))}
-                                            </ThreadGroup>
-                                        )}
-                                        {groupedThreads?.last30Days && groupedThreads.last30Days.length > 0 && (
-                                            <ThreadGroup label="Last 30 Days">
-                                                {groupedThreads.last30Days.map((t) => renderThread(t))}
-                                            </ThreadGroup>
-                                        )}
-                                        {groupedThreads?.older && groupedThreads.older.length > 0 && (
-                                            <ThreadGroup label="Older" defaultOpen={false}>
-                                                {groupedThreads.older.map((t) => renderThread(t))}
-                                            </ThreadGroup>
-                                        )}
-                                    </>
-                                )}
                                     </SidebarMenu>
                                 </SidebarGroupContent>
                             </SidebarGroup>
@@ -330,7 +341,7 @@ export function Sidebar() {
                                 {user?.fullName ?? user?.emailAddresses[0]?.emailAddress}
                             </p>
                             <p className="truncate text-xs text-muted-foreground">
-                                {currentUser?.tier === 'pro' ? 'Pro' : 'Basic'} Plan
+                                {currentUser?.tier === 'pro' ? 'Pro' : (currentUser?.hasByok ? 'BYOK' : 'Basic')} Plan
                             </p>
                         </div>
                         <Button variant="ghost" size="icon" className="shrink-0" asChild>
@@ -355,6 +366,7 @@ export function Sidebar() {
                 open={documentsModalOpen}
                 onClose={closeDocumentsModal}
                 onAttachDocument={onAttachDocument}
+                onAttachMedia={onAttachMedia}
             />
         </>
     );

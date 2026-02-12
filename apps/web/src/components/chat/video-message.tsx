@@ -87,6 +87,7 @@ export function GeneratedVideoMessage({ media }: GeneratedVideoMessageProps) {
                 controls
                 className="h-auto w-full rounded-lg"
                 preload="metadata"
+                poster={`${media.url}#t=0.1`}
             />
             <div
                 className={cn(

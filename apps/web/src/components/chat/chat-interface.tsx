@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAction, useQuery } from 'convex/react';
 import { useUIMessages } from '@convex-dev/agent/react';
-import { Send, Loader2, Square, Paperclip, User, Bot, FileText } from 'lucide-react';
+import { Send, Loader2, Square, Paperclip, User, Bot, FileText, Video, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -24,6 +24,7 @@ import { VideoSettings } from './video-settings';
 import type { VideoConfig } from './video-settings';
 import { useLastUsedModel } from '~/hooks/use-last-used-model';
 import { useDocumentsModal } from '~/hooks/use-documents-modal';
+import type { AttachedMedia } from '~/hooks/use-documents-modal';
 
 // Optimistic user message component - shown immediately before server confirms
 function OptimisticUserMessage({ content }: { content: string }) {
@@ -110,6 +111,8 @@ export function ChatInterface({
     const [attachedDocuments, setAttachedDocuments] = useState<
         { documentId: Id<'documents'>; title: string }[]
     >([]);
+    const [attachedMedia, setAttachedMedia] = useState<AttachedMedia[]>([]);
+    const [attachedThreads, setAttachedThreads] = useState<{ threadId: string; title: string }[]>([]);
     // Optimistic message state for immediate feedback
     const [optimisticMessage, setOptimisticMessage] = useState<{ content: string; model: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -133,7 +136,18 @@ export function ChatInterface({
     }, [threadModel, isNewChat]);
 
     const currentUser = useQuery(api.users.getCurrent);
-    const { setOnAttachDocument } = useDocumentsModal();
+    const { setOnAttachDocument, setOnAttachMedia, setOnAttachThread } = useDocumentsModal();
+
+    const documents = useQuery(api.documents.listDocuments) ?? [];
+
+    // Check if selected model supports file/image input
+    const selectedModelInfo = useQuery(api.openrouter.getModelByOpenRouterId, {
+        openRouterId: selectedModel,
+    });
+    const supportsFiles = selectedModelInfo?.inputModalities?.some(
+        (m) => m === 'image' || m === 'file',
+    ) ?? false;
+    const isVideoModel = selectedModelInfo?.outputModalities?.includes('video') ?? false;
 
     // Register document attach callback with documents modal context
     useEffect(() => {
@@ -147,16 +161,34 @@ export function ChatInterface({
         return () => setOnAttachDocument(undefined);
     }, [setOnAttachDocument]);
 
-    const documents = useQuery(api.documents.listDocuments) ?? [];
+    // Register media attach callback with documents modal context
+    useEffect(() => {
+        const handleMediaAttach = (media: AttachedMedia) => {
+            if (!supportsFiles) {
+                toast.error('This model does not support image/video input');
+                return;
+            }
+            setAttachedMedia((prev) => {
+                if (prev.some((m) => m.mediaId === media.mediaId)) return prev;
+                return [...prev, media];
+            });
+        };
+        setOnAttachMedia(handleMediaAttach);
+        return () => setOnAttachMedia(undefined);
+    }, [setOnAttachMedia, supportsFiles]);
 
-    // Check if selected model supports file/image input
-    const selectedModelInfo = useQuery(api.openrouter.getModelByOpenRouterId, {
-        openRouterId: selectedModel,
-    });
-    const supportsFiles = selectedModelInfo?.inputModalities?.some(
-        (m) => m === 'image' || m === 'file',
-    ) ?? false;
-    const isVideoModel = selectedModelInfo?.outputModalities?.includes('video') ?? false;
+    // Register thread attach callback
+    useEffect(() => {
+        const handleThreadAttach = (tid: string, title: string) => {
+            setAttachedThreads((prev) => {
+                if (prev.some((t) => t.threadId === tid)) return prev;
+                return [...prev, { threadId: tid, title }];
+            });
+            toast.success(`Thread "${title}" attached to chat`);
+        };
+        setOnAttachThread(handleThreadAttach);
+        return () => setOnAttachThread(undefined);
+    }, [setOnAttachThread]);
 
     // Query media for this thread
     const mediaRecords = useQuery(
@@ -275,9 +307,13 @@ export function ChatInterface({
         const content = input.trim();
         const filesToSend = [...uploadedFiles];
         const docsToSend = [...attachedDocuments];
+        const mediaToSend = [...attachedMedia];
+        const threadsToSend = [...attachedThreads];
         setInput('');
         setUploadedFiles([]);
         setAttachedDocuments([]);
+        setAttachedMedia([]);
+        setAttachedThreads([]);
         localStorage.removeItem(draftKey);
         setIsLoading(true);
 
@@ -326,6 +362,12 @@ export function ChatInterface({
                 }),
                 ...(docsToSend.length > 0 && {
                     documentIds: docsToSend.map((d) => d.documentId),
+                }),
+                ...(mediaToSend.length > 0 && {
+                    mediaUrls: mediaToSend.map((m) => m.url),
+                }),
+                ...(threadsToSend.length > 0 && {
+                    threadIds: threadsToSend.map((t) => t.threadId),
                 }),
                 ...videoArgs,
             });
@@ -384,8 +426,8 @@ export function ChatInterface({
             (m) => m.role === 'assistant' && m.status === 'streaming'
         )
     ) || (
-        isLoading && !optimisticMessage && awaitingAssistantResponse
-    );
+            isLoading && !optimisticMessage && awaitingAssistantResponse
+        );
 
     // Show skeleton when loading existing thread with no messages yet and no optimistic message
     const showSkeleton = isLoadingMessages && messages.length === 0 && !optimisticMessage && !isNewChat;
@@ -464,6 +506,7 @@ export function ChatInterface({
                             value={selectedModel}
                             onChange={setSelectedModel}
                             userTier={currentUser?.tier ?? 'basic'}
+                            hasByok={!!currentUser?.hasByok}
                         />
                         {/* Always render attach button to prevent layout shift - just disable when not supported */}
                         <Button
@@ -509,6 +552,50 @@ export function ChatInterface({
                                         )
                                     }
                                 />
+                            ))}
+                        </div>
+                    )}
+                    {attachedMedia.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                            {attachedMedia.map((media) => (
+                                <div
+                                    key={media.mediaId}
+                                    className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
+                                >
+                                    {media.type === 'image' ? (
+                                        <img src={media.url} alt={media.title} className="h-5 w-5 rounded object-cover" />
+                                    ) : (
+                                        <Video className="h-3 w-3 text-muted-foreground" />
+                                    )}
+                                    <span className="max-w-[80px] truncate">{media.title}</span>
+                                    <button
+                                        type="button"
+                                        className="ml-0.5 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setAttachedMedia((prev) => prev.filter((m) => m.mediaId !== media.mediaId))}
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    {attachedThreads.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                            {attachedThreads.map((thread) => (
+                                <div
+                                    key={thread.threadId}
+                                    className="flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
+                                >
+                                    <MessageSquare className="h-3 w-3 text-muted-foreground" />
+                                    <span className="max-w-[100px] truncate">{thread.title}</span>
+                                    <button
+                                        type="button"
+                                        className="ml-0.5 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setAttachedThreads((prev) => prev.filter((t) => t.threadId !== thread.threadId))}
+                                    >
+                                        &times;
+                                    </button>
+                                </div>
                             ))}
                         </div>
                     )}

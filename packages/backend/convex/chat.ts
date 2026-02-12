@@ -193,6 +193,8 @@ export const sendMessage = action({
         model: v.string(),
         fileIds: v.optional(v.array(v.string())),
         documentIds: v.optional(v.array(v.id('documents'))),
+        mediaUrls: v.optional(v.array(v.string())),
+        threadIds: v.optional(v.array(v.string())),
         duration: v.optional(v.number()),
         aspectRatio: v.optional(v.string()),
     },
@@ -220,9 +222,44 @@ export const sendMessage = action({
             throw new Error('Thread not found');
         }
 
-        // Check if model is available for user's tier
-        if (!isModelAvailableForTier(args.model, user.tier)) {
-            throw new Error('Model not available for your tier');
+        // Fetch user BYOK keys
+        const byokKeys = await ctx.runQuery(internal.chat.getUserByokKeys, {
+            userId: user._id,
+        });
+
+        // Look up model info to determine output type and tier
+        const modelInfo = await ctx.runQuery(internal.openrouter.internalGetModel, {
+            openRouterId: args.model,
+        });
+        const modelTier = modelInfo?.tier ?? 'basic';
+        const isFalProvider = modelInfo?.provider === 'FalAI' || args.model.startsWith('fal-ai/');
+
+        // Resolve which API key to use
+        let resolvedOpenRouterKey: string | undefined;
+        let resolvedFalKey: string | undefined;
+
+        if (modelTier === 'premium' || isFalProvider) {
+            if (user.tier === 'pro') {
+                // Pro users use system keys
+                resolvedOpenRouterKey = undefined; // will fallback to env
+                resolvedFalKey = undefined;
+            } else if (isFalProvider && byokKeys?.falApiKey) {
+                resolvedFalKey = byokKeys.falApiKey;
+            } else if (!isFalProvider && byokKeys?.openRouterApiKey) {
+                resolvedOpenRouterKey = byokKeys.openRouterApiKey;
+            } else if (isFalProvider) {
+                throw new Error('This model requires Pro or your own fal.ai API key. Visit Settings to add your key.');
+            } else {
+                // Check old access control for non-BYOK users
+                if (!isModelAvailableForTier(args.model, user.tier)) {
+                    throw new Error('This model requires Pro or your own API key. Visit Settings to add your key.');
+                }
+            }
+        } else {
+            // Basic model — use BYOK key if available, otherwise system key
+            if (byokKeys?.openRouterApiKey) {
+                resolvedOpenRouterKey = byokKeys.openRouterApiKey;
+            }
         }
 
         // Check token limits
@@ -230,9 +267,10 @@ export const sendMessage = action({
         const isPremium = isPremiumModel(args.model);
 
         if (isPremium) {
-            if (user.premiumTokensUsed >= limits.premiumTokens) {
+            if (user.premiumTokensUsed >= limits.premiumTokens && user.tier !== 'basic') {
                 throw new Error('Premium token limit reached');
             }
+            // BYOK users on basic tier bypass premium token limits
         } else {
             if (user.basicTokensUsed >= limits.basicTokens) {
                 throw new Error('Basic token limit reached');
@@ -250,20 +288,13 @@ export const sendMessage = action({
             );
         }
 
-        // Look up model info to determine output type
-        const modelInfo = await ctx.runQuery(internal.openrouter.internalGetModel, {
-            openRouterId: args.model,
-        });
         const outputModalities = modelInfo?.outputModalities ?? [];
         const isImageModel = outputModalities.includes('image');
         const isVideoModel = outputModalities.includes('video');
-        const isFalModel = modelInfo?.provider === 'FalAI' || args.model.startsWith('fal-ai/');
+        const isFalModel = isFalProvider;
 
         // ─── FalAI image generation path ───────────────
         if (isFalModel && isImageModel) {
-            if (user.tier !== 'pro') {
-                throw new Error('Image generation requires a Pro subscription');
-            }
 
             const mediaId = await ctx.runMutation(internal.media.createMediaRecord, {
                 userId: user._id,
@@ -298,6 +329,7 @@ export const sendMessage = action({
                 model: args.model,
                 prompt: args.content,
                 ...(imageUrls.length > 0 ? { imageUrls } : {}),
+                ...(resolvedFalKey ? { falApiKey: resolvedFalKey } : {}),
             });
 
             // Add placeholder assistant message with media reference
@@ -316,9 +348,6 @@ export const sendMessage = action({
 
         // ─── FalAI video generation path ───────────────
         if (isFalModel && isVideoModel) {
-            if (user.tier !== 'pro') {
-                throw new Error('Video generation requires a Pro subscription');
-            }
 
             const mediaId = await ctx.runMutation(internal.media.createMediaRecord, {
                 userId: user._id,
@@ -355,6 +384,7 @@ export const sendMessage = action({
                 ...(imageUrls.length > 0 ? { imageUrls } : {}),
                 ...(args.duration ? { duration: args.duration } : {}),
                 ...(args.aspectRatio ? { aspectRatio: args.aspectRatio } : {}),
+                ...(resolvedFalKey ? { falApiKey: resolvedFalKey } : {}),
             });
 
             // Add placeholder assistant message
@@ -374,9 +404,6 @@ export const sendMessage = action({
         // ─── OpenRouter Image generation path ─────────────────────
         if (isImageModel) {
             console.log(`[openrouter:image] Starting image generation with model=${args.model}`);
-            if (user.tier !== 'pro') {
-                throw new Error('Image generation requires a Pro subscription');
-            }
 
             // Create media record
             const mediaId = await ctx.runMutation(internal.media.createMediaRecord, {
@@ -401,7 +428,8 @@ export const sendMessage = action({
                     status: 'generating',
                 });
 
-                console.log(`[openrouter:image] Calling OpenRouter API for model=${args.model}, hasApiKey=${!!process.env.OPENROUTER_API_KEY}`);
+                const orKey = resolvedOpenRouterKey ?? process.env.OPENROUTER_API_KEY;
+                console.log(`[openrouter:image] Calling OpenRouter API for model=${args.model}, hasApiKey=${!!orKey}, byok=${!!resolvedOpenRouterKey}`);
 
                 // Call OpenRouter API for image generation
                 // Include modalities param so models like gpt-5-image know to generate images
@@ -409,7 +437,7 @@ export const sendMessage = action({
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                        'Authorization': `Bearer ${orKey}`,
                     },
                     body: JSON.stringify({
                         model: args.model,
@@ -563,8 +591,8 @@ export const sendMessage = action({
         }
 
         // ─── Text generation path (existing) ───────────
-        // Create agent with the requested model
-        const agent = createAgentWithModel(args.model);
+        // Create agent with the requested model (with BYOK key if available)
+        const agent = createAgentWithModel(args.model, resolvedOpenRouterKey);
 
         // Fetch attached document content and prepend to message
         let messageContent = args.content;
@@ -600,6 +628,35 @@ export const sendMessage = action({
             if (docContents.length > 0) {
                 messageContent = `${docContents.join('\n\n')}\n\n---\n\n${args.content}`;
             }
+        }
+
+        // Fetch attached thread content and prepend to message
+        if (args.threadIds && args.threadIds.length > 0) {
+            const threadContents: string[] = [];
+            for (const tid of args.threadIds) {
+                const threadInfo = await ctx.runQuery(internal.chat.getUserThread, { threadId: tid });
+                if (threadInfo) {
+                    const threadMessages = await ctx.runQuery(internal.chat.getThreadMessagesInternal, { threadId: tid });
+                    const serialized = {
+                        thread: threadInfo.title ?? 'Untitled',
+                        model: threadInfo.model,
+                        messages: threadMessages.map((m: { role: string; text?: string }) => ({
+                            role: m.role,
+                            content: m.text ?? '',
+                        })),
+                    };
+                    threadContents.push(`[Thread: ${threadInfo.title ?? 'Untitled'}]\n${JSON.stringify(serialized, null, 2)}`);
+                }
+            }
+            if (threadContents.length > 0) {
+                messageContent = `${threadContents.join('\n\n')}\n\n---\n\n${messageContent}`;
+            }
+        }
+
+        // Append media URLs as attached images
+        if (args.mediaUrls && args.mediaUrls.length > 0) {
+            const mediaMarkers = args.mediaUrls.map((url) => `[ATTACHED_IMAGE:${url}]`).join('\n');
+            messageContent = `${mediaMarkers}\n${messageContent}`;
         }
 
         // Build message content - support file attachments
@@ -739,6 +796,21 @@ export const getUser = internalQuery({
     },
 });
 
+export const getUserByokKeys = internalQuery({
+    args: {
+        userId: v.id('users'),
+    },
+    handler: async (ctx, args) => {
+        const user = await ctx.db.get(args.userId);
+        if (!user) return null;
+        return {
+            openRouterApiKey: user.openRouterApiKey,
+            falApiKey: user.falApiKey,
+            hasByok: !!user.hasByok,
+        };
+    },
+});
+
 export const getUserThread = internalQuery({
     args: {
         threadId: v.string(),
@@ -748,6 +820,19 @@ export const getUserThread = internalQuery({
             .query('userThreads')
             .withIndex('by_thread_id', (q) => q.eq('threadId', args.threadId))
             .first();
+    },
+});
+
+export const getThreadMessagesInternal = internalQuery({
+    args: {
+        threadId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        const paginated = await listUIMessages(ctx, components.agent, {
+            threadId: args.threadId,
+            paginationOpts: { cursor: null, numItems: 100 },
+        });
+        return paginated.page;
     },
 });
 

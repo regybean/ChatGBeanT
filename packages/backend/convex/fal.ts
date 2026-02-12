@@ -13,9 +13,10 @@ export const submitImageGeneration = internalAction({
     model: v.string(),
     prompt: v.string(),
     imageUrls: v.optional(v.array(v.string())),
+    falApiKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const falKey = process.env.FAL_KEY;
+    const falKey = args.falApiKey ?? process.env.FAL_KEY;
     if (!falKey) {
       await ctx.runMutation(internal.media.updateMediaStatus, {
         mediaId: args.mediaId,
@@ -107,9 +108,10 @@ export const submitVideoGeneration = internalAction({
     duration: v.optional(v.number()),
     aspectRatio: v.optional(v.string()),
     imageUrls: v.optional(v.array(v.string())),
+    falApiKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const falKey = process.env.FAL_KEY;
+    const falKey = args.falApiKey ?? process.env.FAL_KEY;
     if (!falKey) {
       await ctx.runMutation(internal.media.updateMediaStatus, {
         mediaId: args.mediaId,
@@ -177,6 +179,7 @@ export const submitVideoGeneration = internalAction({
         attempts: 0,
         ...(result.status_url ? { statusUrl: result.status_url } : {}),
         ...(result.response_url ? { responseUrl: result.response_url } : {}),
+        ...(args.falApiKey ? { falApiKey: args.falApiKey } : {}),
       });
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Video generation failed';
@@ -200,9 +203,10 @@ export const checkVideoStatus = internalAction({
     attempts: v.number(),
     statusUrl: v.optional(v.string()),
     responseUrl: v.optional(v.string()),
+    falApiKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const falKey = process.env.FAL_KEY;
+    const falKey = args.falApiKey ?? process.env.FAL_KEY;
     if (!falKey) return;
 
     const MAX_ATTEMPTS = 120; // 10 minutes max (5s intervals)
@@ -248,6 +252,7 @@ export const checkVideoStatus = internalAction({
         attempts: args.attempts + 1,
         ...(args.statusUrl ? { statusUrl: args.statusUrl } : {}),
         ...(args.responseUrl ? { responseUrl: args.responseUrl } : {}),
+        ...(args.falApiKey ? { falApiKey: args.falApiKey } : {}),
       });
     };
 

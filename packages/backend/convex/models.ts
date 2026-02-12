@@ -74,6 +74,15 @@ export function getModelsForTier(tier: 'basic' | 'pro'): ModelInfo[] {
   return BASIC_MODELS;
 }
 
+export function isModelAvailableForTierOrByok(
+  modelId: string,
+  tier: 'basic' | 'pro',
+  hasByok: boolean,
+): boolean {
+  if (tier === 'pro' || hasByok) return true;
+  return isModelAvailableForTier(modelId, tier);
+}
+
 export function isModelAvailableForTier(
   modelId: string,
   tier: 'basic' | 'pro',

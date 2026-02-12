@@ -4,6 +4,12 @@ import { Authenticated, Unauthenticated, AuthLoading } from 'convex/react';
 import Link from 'next/link';
 
 import { Button } from '@chatgbeant/ui/button';
+import { SidebarProvider, SidebarTrigger } from '@chatgbeant/ui/sidebar';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@chatgbeant/ui/tooltip';
 
 import { AdminSidebar } from '~/components/admin/sidebar';
 
@@ -35,12 +41,24 @@ export default function AdminLayout({
             </Unauthenticated>
 
             <Authenticated>
-                <div className="flex h-screen bg-background">
+                <SidebarProvider>
                     <AdminSidebar />
-                    <main className="flex-1 overflow-y-auto p-6">
-                        {children}
+                    <main className="flex flex-1 flex-col overflow-hidden">
+                        <div className="relative z-20 flex items-center gap-2 border-b bg-background px-2 py-1">
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <SidebarTrigger className="h-9 w-9" />
+                                </TooltipTrigger>
+                                <TooltipContent side="right">
+                                    Toggle sidebar (Ctrl+B)
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6">
+                            {children}
+                        </div>
                     </main>
-                </div>
+                </SidebarProvider>
             </Authenticated>
         </>
     );
