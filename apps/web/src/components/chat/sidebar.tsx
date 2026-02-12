@@ -57,7 +57,7 @@ export function Sidebar() {
     const { user } = useUser();
     const currentUser = useQuery(api.users.getCurrent);
 
-    const { isOpen: documentsModalOpen, openModal: openDocumentsModal, closeModal: closeDocumentsModal, onAttachDocument, onAttachMedia, onAttachThread } = useDocumentsModal();
+    const { isOpen: documentsModalOpen, openModal: openDocumentsModal, closeModal: closeDocumentsModal, onAttachDocument, onAttachMedia, onAttachThread, isThreadAttachMode } = useDocumentsModal();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [hoveredThreadId, setHoveredThreadId] = useState<string | null>(null);
@@ -200,6 +200,7 @@ export function Sidebar() {
             onMoveToGroup={handleMoveToGroup}
             onHover={setHoveredThreadId}
             onAttachToChat={onAttachThread ? handleAttachToChat : undefined}
+            isAttachMode={isThreadAttachMode}
         />
     );
 

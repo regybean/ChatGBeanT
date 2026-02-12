@@ -36,6 +36,7 @@ interface ThreadItemProps {
     onMoveToGroup?: (threadId: string, groupId?: Id<'threadGroups'>) => void;
     onHover?: (threadId: string | null) => void;
     onAttachToChat?: (threadId: string, title: string) => void;
+    isAttachMode?: boolean;
 }
 
 export function ThreadItem({
@@ -48,6 +49,7 @@ export function ThreadItem({
     onMoveToGroup,
     onHover,
     onAttachToChat,
+    isAttachMode,
 }: ThreadItemProps) {
     const pathname = usePathname();
     const router = useRouter();
@@ -99,6 +101,12 @@ export function ThreadItem({
             }, 100);
             return;
         }
+        // In attach mode, attach thread to chat instead of navigating
+        if (isAttachMode && onAttachToChat) {
+            e.preventDefault();
+            onAttachToChat(threadId, title);
+            return;
+        }
         // Navigate programmatically to avoid form submission issues
         e.preventDefault();
         router.push(href);
@@ -112,6 +120,7 @@ export function ThreadItem({
             style={style}
             className={cn(
                 isDragging && 'opacity-50 shadow-lg',
+                isAttachMode && 'bg-purple-500/15 rounded-md cursor-pointer',
             )}
             onMouseEnter={() => {
                 setIsHovered(true);

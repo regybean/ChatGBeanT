@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useMemo, useState, useEffect } from 'react';
-import { User, Bot, Loader2, FileText, AlertCircle } from 'lucide-react';
+import { User, Bot, Loader2, FileText, MessageSquare, AlertCircle } from 'lucide-react';
 import { useSmoothText } from '@convex-dev/agent/react';
 import type { UIMessage } from '@convex-dev/agent';
 
@@ -32,6 +32,27 @@ function parseDocumentReferences(text: string): { documents: string[]; cleanedTe
         .trim();
 
     return { documents, cleanedText };
+}
+
+// Parse thread references from message text and separate them from the actual message
+function parseThreadReferences(text: string): { threads: string[]; cleanedText: string } {
+    const threadPattern = /\[Thread: ([^\]]+)\]\n[\s\S]*?(?=\n\n---\n\n|\[Thread:|\[Document:|$)/g;
+    const threads: string[] = [];
+    let match;
+
+    while ((match = threadPattern.exec(text)) !== null) {
+        if (match[1]) {
+            threads.push(match[1]);
+        }
+    }
+
+    // Remove thread sections and the separator from the text
+    const cleanedText = text
+        .replaceAll(/\[Thread: [^\]]+\]\n[\s\S]*?\n\n---\n\n/g, '')
+        .replaceAll(/\[Thread: [^\]]+\]\n[\s\S]*$/g, '')
+        .trim();
+
+    return { threads, cleanedText };
 }
 
 // Parse attached image URLs from message text
@@ -81,14 +102,15 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
         startStreaming: isStreaming,
     });
 
-    // Parse document references and attached images for user messages
-    const { documents, attachedImages, cleanedText } = useMemo(() => {
+    // Parse document references, thread references, and attached images for user messages
+    const { documents, threads, attachedImages, cleanedText } = useMemo(() => {
         if (isUser && visibleText) {
             const { imageUrls, cleanedText: afterImages } = parseAttachedImages(visibleText);
-            const { documents, cleanedText: afterDocs } = parseDocumentReferences(afterImages);
-            return { documents, attachedImages: imageUrls, cleanedText: afterDocs };
+            const { threads, cleanedText: afterThreads } = parseThreadReferences(afterImages);
+            const { documents, cleanedText: afterDocs } = parseDocumentReferences(afterThreads);
+            return { documents, threads, attachedImages: imageUrls, cleanedText: afterDocs };
         }
-        return { documents: [], attachedImages: [] as string[], cleanedText: visibleText };
+        return { documents: [], threads: [] as string[], attachedImages: [] as string[], cleanedText: visibleText };
     }, [isUser, visibleText]);
 
     // Use cleaned text for display
@@ -125,7 +147,7 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
 
     // Don't render empty bubble for user messages that have no content (unless they have docs or images)
     // For assistant messages, always render (will show thinking indicator if no content)
-    const shouldRender = isUser ? (hasContent || documents.length > 0 || attachedImages.length > 0) : (hasContent || showTypingIndicator || (isCancelled && !visibleText));
+    const shouldRender = isUser ? (hasContent || documents.length > 0 || threads.length > 0 || attachedImages.length > 0) : (hasContent || showTypingIndicator || (isCancelled && !visibleText));
 
     if (!shouldRender) {
         return null;
@@ -176,6 +198,20 @@ export const MessageBubble = memo(function MessageBubble({ message, model, isCan
                             >
                                 <FileText className="h-3.5 w-3.5" />
                                 <span className="max-w-[120px] truncate">{docTitle}</span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                {/* Thread reference chips for user messages */}
+                {isUser && threads.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 justify-end">
+                        {threads.map((threadTitle, idx) => (
+                            <div
+                                key={idx}
+                                className="flex items-center gap-1.5 rounded-md border border-primary-foreground/20 bg-primary/80 px-2 py-1 text-xs text-primary-foreground"
+                            >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                <span className="max-w-[120px] truncate">{threadTitle}</span>
                             </div>
                         ))}
                     </div>

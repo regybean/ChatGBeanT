@@ -1,13 +1,18 @@
 import { v } from 'convex/values';
 import { paginationOptsValidator } from 'convex/server';
-import { action, mutation, query, internalMutation, internalQuery } from './_generated/server';
+import { action, mutation, query, internalAction, internalMutation, internalQuery } from './_generated/server';
 import { internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { listUIMessages, syncStreams, vStreamArgs } from '@convex-dev/agent';
-import { chatAgent, createAgentWithModel } from './agent';
+import { chatAgent, createAgentWithModel, createLanguageModel } from './agent';
 import { rateLimiter } from './rateLimiterConfig';
 import { isModelAvailableForTier, isPremiumModel, BASIC_MODELS } from './models';
 import { components } from './_generated/api';
+
+// ─── Title generation constants ──────────────────
+const TITLE_UPDATE_INTERVAL = 5;    // Generate/update title every N user messages
+const TITLE_CONTEXT_MESSAGES = 15;  // Use last N messages for title generation
+const TITLE_MODEL = 'openrouter/auto'; // Free model for title generation
 
 const TOKEN_LIMITS = {
     basic: {
@@ -637,15 +642,10 @@ export const sendMessage = action({
                 const threadInfo = await ctx.runQuery(internal.chat.getUserThread, { threadId: tid });
                 if (threadInfo) {
                     const threadMessages = await ctx.runQuery(internal.chat.getThreadMessagesInternal, { threadId: tid });
-                    const serialized = {
-                        thread: threadInfo.title ?? 'Untitled',
-                        model: threadInfo.model,
-                        messages: threadMessages.map((m: { role: string; text?: string }) => ({
-                            role: m.role,
-                            content: m.text ?? '',
-                        })),
-                    };
-                    threadContents.push(`[Thread: ${threadInfo.title ?? 'Untitled'}]\n${JSON.stringify(serialized, null, 2)}`);
+                    const messagesText = threadMessages
+                        .map((m: { role: string; text?: string }) => `${m.role}: ${m.text ?? ''}`)
+                        .join('\n');
+                    threadContents.push(`[Thread: ${threadInfo.title ?? 'Untitled'}]\n${messagesText}`);
                 }
             }
             if (threadContents.length > 0) {
@@ -867,16 +867,86 @@ export const maybeUpdateThreadTitle = internalMutation({
     },
     handler: async (ctx, args) => {
         const userThread = await ctx.db.get(args.userThreadId);
-        if (!userThread || userThread.title) return;
+        if (!userThread) return;
 
-        // Generate title from first message
-        const title =
-            args.content.length > 50
-                ? args.content.substring(0, 47) + '...'
-                : args.content;
+        // Never auto-rename manually renamed threads
+        if (userThread.manuallyRenamed) return;
+
+        // Increment message count
+        const newCount = (userThread.messageCount ?? 0) + 1;
+        await ctx.db.patch(args.userThreadId, {
+            messageCount: newCount,
+            updatedAt: Date.now(),
+        });
+
+        // Schedule AI title generation on first message or every TITLE_UPDATE_INTERVAL messages
+        const lastUpdate = userThread.lastTitleUpdateAt ?? 0;
+        if (newCount === 1 || newCount - lastUpdate >= TITLE_UPDATE_INTERVAL) {
+            await ctx.scheduler.runAfter(0, internal.chat.generateThreadTitle, {
+                userThreadId: userThread._id,
+                threadId: args.threadId,
+                messageCount: newCount,
+            });
+        }
+    },
+});
+
+export const generateThreadTitle = internalAction({
+    args: {
+        userThreadId: v.id('userThreads'),
+        threadId: v.string(),
+        messageCount: v.number(),
+    },
+    handler: async (ctx, args) => {
+        try {
+            // Fetch recent messages for context
+            const messages = await ctx.runQuery(internal.chat.getThreadMessagesInternal, {
+                threadId: args.threadId,
+            });
+
+            const recentMessages = messages.slice(-TITLE_CONTEXT_MESSAGES);
+            if (recentMessages.length === 0) return;
+
+            const conversationSummary = recentMessages
+                .map((m: { role: string; text?: string }) => `${m.role}: ${m.text ?? ''}`)
+                .join('\n');
+
+            // Call OpenRouter free model for title generation
+            const model = createLanguageModel(TITLE_MODEL);
+            const { generateText } = await import('ai');
+            const result = await generateText({
+                model,
+                prompt: `Generate a short, descriptive title (max 50 characters) for this conversation. Return ONLY the title text, nothing else. No quotes, no prefixes.\n\nConversation:\n${conversationSummary}`,
+            });
+
+            const title = result.text.trim().replace(/^["']|["']$/g, '').substring(0, 50);
+            if (title) {
+                await ctx.runMutation(internal.chat.setThreadTitle, {
+                    userThreadId: args.userThreadId,
+                    title,
+                    messageCount: args.messageCount,
+                });
+            }
+        } catch (error) {
+            // Silently fail — title generation is non-critical
+            console.error('Title generation failed:', error);
+        }
+    },
+});
+
+export const setThreadTitle = internalMutation({
+    args: {
+        userThreadId: v.id('userThreads'),
+        title: v.string(),
+        messageCount: v.number(),
+    },
+    handler: async (ctx, args) => {
+        const userThread = await ctx.db.get(args.userThreadId);
+        if (!userThread || userThread.manuallyRenamed) return;
 
         await ctx.db.patch(args.userThreadId, {
-            title,
+            title: args.title,
+            lastTitleUpdateAt: args.messageCount,
             updatedAt: Date.now(),
         });
     },
@@ -936,6 +1006,7 @@ export const renameThread = mutation({
 
         await ctx.db.patch(userThread._id, {
             title: args.title.trim(),
+            manuallyRenamed: true,
             updatedAt: Date.now(),
         });
     },

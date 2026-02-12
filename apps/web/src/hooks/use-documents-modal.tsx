@@ -21,6 +21,8 @@ interface DocumentsModalContextValue {
     setOnAttachMedia: (fn: ((media: AttachedMedia) => void) | undefined) => void;
     onAttachThread: ((threadId: string, title: string) => void) | undefined;
     setOnAttachThread: (fn: ((threadId: string, title: string) => void) | undefined) => void;
+    isThreadAttachMode: boolean;
+    setIsThreadAttachMode: (value: boolean) => void;
 }
 
 const DocumentsModalContext = createContext<DocumentsModalContextValue | null>(null);
@@ -30,6 +32,7 @@ export function DocumentsModalProvider({ children }: { children: ReactNode }) {
     const [onAttach, setOnAttach] = useState<((documentId: Id<'documents'>, title: string) => void) | undefined>();
     const [onMedia, setOnMedia] = useState<((media: AttachedMedia) => void) | undefined>();
     const [onThread, setOnThread] = useState<((threadId: string, title: string) => void) | undefined>();
+    const [isThreadAttachMode, setIsThreadAttachMode] = useState(false);
 
     const openModal = useCallback(() => setIsOpen(true), []);
     const closeModal = useCallback(() => setIsOpen(false), []);
@@ -64,6 +67,8 @@ export function DocumentsModalProvider({ children }: { children: ReactNode }) {
                 setOnAttachMedia,
                 onAttachThread: onThread,
                 setOnAttachThread,
+                isThreadAttachMode,
+                setIsThreadAttachMode,
             }}
         >
             {children}

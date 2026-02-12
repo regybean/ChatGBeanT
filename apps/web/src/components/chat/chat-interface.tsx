@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAction, useQuery } from 'convex/react';
 import { useUIMessages } from '@convex-dev/agent/react';
-import { Send, Loader2, Square, Paperclip, User, Bot, FileText, Video, MessageSquare } from 'lucide-react';
+import { Send, Loader2, Square, Paperclip, User, Bot, FileText, Video, MessageSquare, MessageSquarePlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { api } from '@chatgbeant/backend/convex/_generated/api';
@@ -136,7 +136,7 @@ export function ChatInterface({
     }, [threadModel, isNewChat]);
 
     const currentUser = useQuery(api.users.getCurrent);
-    const { setOnAttachDocument, setOnAttachMedia, setOnAttachThread } = useDocumentsModal();
+    const { setOnAttachDocument, setOnAttachMedia, setOnAttachThread, isThreadAttachMode, setIsThreadAttachMode } = useDocumentsModal();
 
     const documents = useQuery(api.documents.listDocuments) ?? [];
 
@@ -184,11 +184,12 @@ export function ChatInterface({
                 if (prev.some((t) => t.threadId === tid)) return prev;
                 return [...prev, { threadId: tid, title }];
             });
+            setIsThreadAttachMode(false);
             toast.success(`Thread "${title}" attached to chat`);
         };
         setOnAttachThread(handleThreadAttach);
         return () => setOnAttachThread(undefined);
-    }, [setOnAttachThread]);
+    }, [setOnAttachThread, setIsThreadAttachMode]);
 
     // Query media for this thread
     const mediaRecords = useQuery(
@@ -519,6 +520,17 @@ export function ChatInterface({
                             title={supportsFiles ? 'Attach files' : 'This model does not support file attachments'}
                         >
                             <Paperclip className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            type="button"
+                            variant={isThreadAttachMode ? 'default' : 'outline'}
+                            size="icon"
+                            className="shrink-0"
+                            disabled={isLoading}
+                            onClick={() => setIsThreadAttachMode(!isThreadAttachMode)}
+                            title={isThreadAttachMode ? 'Cancel thread attach' : 'Attach a thread'}
+                        >
+                            <MessageSquarePlus className="h-4 w-4" />
                         </Button>
                         {documents.length > 0 && documents.slice(0, 3).map((doc) => (
                             <button

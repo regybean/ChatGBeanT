@@ -37,6 +37,9 @@ export default defineSchema({
     isPinned: v.optional(v.boolean()),
     pinnedAt: v.optional(v.number()),
     groupId: v.optional(v.id('threadGroups')),
+    manuallyRenamed: v.optional(v.boolean()),
+    messageCount: v.optional(v.number()),
+    lastTitleUpdateAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
